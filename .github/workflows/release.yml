@@ -74,7 +74,7 @@ jobs:
         run: |
           mkdir -p dist
           cp target/${{ matrix.target }}/release/kremis dist/
-          cp README.md LICENSE kremis.toml dist/ 2>/dev/null || true
+          cp README.md LICENSE dist/ 2>/dev/null || true
           cd dist
           tar czvf ../kremis-${{ github.ref_name }}-${{ matrix.target }}.${{ matrix.archive }} *
 
@@ -84,7 +84,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist
           Copy-Item target/${{ matrix.target }}/release/kremis.exe dist/
-          Copy-Item README.md, LICENSE, kremis.toml dist/ -ErrorAction SilentlyContinue
+          Copy-Item README.md, LICENSE dist/ -ErrorAction SilentlyContinue
           Compress-Archive -Path dist/* -DestinationPath kremis-${{ github.ref_name }}-${{ matrix.target }}.zip
 
       - name: Upload artifact

@@ -11,10 +11,7 @@ edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/M2Dr3g0n/kremis"
 homepage = "https://github.com/M2Dr3g0n/kremis"
-documentation = "https://docs.rs/kremis-core"
 readme = "README.md"
-keywords = ["graph", "deterministic", "ai", "knowledge-graph"]
-categories = ["data-structures", "algorithms"]
 
 # =============================================================================
 # WORKSPACE LINTS (inherited by all crates)

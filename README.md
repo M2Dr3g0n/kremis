@@ -86,7 +86,6 @@ curl http://localhost:8080/health
 ```
 kremis/
 ├── Cargo.toml              # Workspace Root
-├── kremis.toml              # Runtime Config
 ├── crates/
 │   └── kremis-core/         # THE LOGIC - Graph Engine
 │       └── src/

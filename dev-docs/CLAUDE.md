@@ -35,7 +35,6 @@ cargo run -p kremis -- server
 ```
 kremis/
 ├── Cargo.toml              # Workspace Root
-├── kremis.toml              # Runtime Config
 ├── crates/
 │   └── kremis-core/         # THE LOGIC (Lib) - Graph engine
 │       └── src/
