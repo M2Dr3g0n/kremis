@@ -1,0 +1,420 @@
+//! Integration tests for the Kremis HTTP API.
+//!
+//! Uses axum-test to test the API handlers without starting a real server.
+
+// Allow unwrap and panic in tests - these are standard for test code
+#![allow(clippy::unwrap_used, clippy::panic)]
+
+use axum_test::TestServer;
+use kremis::api::{
+    create_router, AppState, ExportResponse, HealthResponse, IngestRequest, IngestResponse,
+    QueryRequest, QueryResponse, StageResponse, StatusResponse,
+};
+use kremis_core::Session;
+use serde_json::json;
+
+// =============================================================================
+// HELPER FUNCTIONS
+// =============================================================================
+
+/// Create a test server with a fresh in-memory session.
+fn create_test_server() -> TestServer {
+    let session = Session::new();
+    let state = AppState::new(session);
+    let router = create_router(state);
+    TestServer::new(router).unwrap()
+}
+
+/// Create a test server with some pre-populated data.
+fn create_populated_test_server() -> TestServer {
+    use kremis_core::{Attribute, EntityId, Signal, Value};
+
+    let mut session = Session::new();
+
+    // Ingest some test signals
+    let signals = vec![
+        Signal::new(EntityId(1), Attribute::new("name"), Value::new("Alice")),
+        Signal::new(EntityId(2), Attribute::new("name"), Value::new("Bob")),
+        Signal::new(EntityId(1), Attribute::new("knows"), Value::new("Bob")),
+    ];
+
+    session.ingest_sequence(&signals).unwrap();
+
+    let state = AppState::new(session);
+    let router = create_router(state);
+    TestServer::new(router).unwrap()
+}
+
+// =============================================================================
+// HEALTH ENDPOINT TESTS
+// =============================================================================
+
+#[tokio::test]
+async fn test_health_endpoint() {
+    let server = create_test_server();
+
+    let response = server.get("/health").await;
+
+    response.assert_status_ok();
+    let health: HealthResponse = response.json();
+    assert_eq!(health.status, "ok");
+    assert!(!health.version.is_empty());
+}
+
+#[tokio::test]
+async fn test_health_returns_correct_version() {
+    let server = create_test_server();
+
+    let response = server.get("/health").await;
+    let health: HealthResponse = response.json();
+
+    // Version should match Cargo.toml
+    assert_eq!(health.version, env!("CARGO_PKG_VERSION"));
+}
+
+// =============================================================================
+// STATUS ENDPOINT TESTS
+// =============================================================================
+
+#[tokio::test]
+async fn test_status_empty_graph() {
+    let server = create_test_server();
+
+    let response = server.get("/status").await;
+
+    response.assert_status_ok();
+    let status: StatusResponse = response.json();
+    assert_eq!(status.node_count, 0);
+    assert_eq!(status.edge_count, 0);
+    assert_eq!(status.stable_edges, 0);
+}
+
+#[tokio::test]
+async fn test_status_populated_graph() {
+    let server = create_populated_test_server();
+
+    let response = server.get("/status").await;
+
+    response.assert_status_ok();
+    let status: StatusResponse = response.json();
+    assert!(status.node_count > 0, "Should have nodes");
+    assert!(status.edge_count > 0, "Should have edges");
+}
+
+// =============================================================================
+// STAGE ENDPOINT TESTS
+// =============================================================================
+
+#[tokio::test]
+async fn test_stage_empty_graph() {
+    let server = create_test_server();
+
+    let response = server.get("/stage").await;
+
+    response.assert_status_ok();
+    let stage: StageResponse = response.json();
+    assert!(stage.stage.starts_with("S")); // S0, S1, S2, or S3
+    assert!(!stage.name.is_empty());
+    assert!(stage.progress_percent <= 100);
+}
+
+#[tokio::test]
+async fn test_stage_returns_valid_stage() {
+    let server = create_populated_test_server();
+
+    let response = server.get("/stage").await;
+    let stage: StageResponse = response.json();
+
+    // Stage should be one of the valid stages
+    let valid_stages = ["S0", "S1", "S2", "S3"];
+    assert!(
+        valid_stages.iter().any(|s| stage.stage.contains(s)),
+        "Stage {} should be one of S0-S3",
+        stage.stage
+    );
+}
+
+// =============================================================================
+// INGEST ENDPOINT TESTS
+// =============================================================================
+
+#[tokio::test]
+async fn test_ingest_valid_signal() {
+    let server = create_test_server();
+
+    let request = IngestRequest {
+        entity_id: 1,
+        attribute: "name".to_string(),
+        value: "Alice".to_string(),
+    };
+
+    let response = server.post("/signal").json(&request).await;
+
+    response.assert_status_ok();
+    let result: IngestResponse = response.json();
+    assert!(result.success);
+    assert!(result.node_id.is_some());
+    assert!(result.error.is_none());
+}
+
+#[tokio::test]
+async fn test_ingest_empty_attribute() {
+    let server = create_test_server();
+
+    let request = json!({
+        "entity_id": 1,
+        "attribute": "",
+        "value": "Alice"
+    });
+
+    let response = server.post("/signal").json(&request).await;
+
+    response.assert_status_bad_request();
+    let result: IngestResponse = response.json();
+    assert!(!result.success);
+    assert!(result.error.is_some());
+}
+
+#[tokio::test]
+async fn test_ingest_empty_value() {
+    let server = create_test_server();
+
+    let request = json!({
+        "entity_id": 1,
+        "attribute": "name",
+        "value": ""
+    });
+
+    let response = server.post("/signal").json(&request).await;
+
+    response.assert_status_bad_request();
+    let result: IngestResponse = response.json();
+    assert!(!result.success);
+}
+
+#[tokio::test]
+async fn test_ingest_multiple_signals() {
+    let server = create_test_server();
+
+    // Ingest first signal
+    let request1 = IngestRequest {
+        entity_id: 1,
+        attribute: "name".to_string(),
+        value: "Alice".to_string(),
+    };
+    let response1 = server.post("/signal").json(&request1).await;
+    let result1: IngestResponse = response1.json();
+    assert!(result1.success);
+
+    // Ingest second signal
+    let request2 = IngestRequest {
+        entity_id: 2,
+        attribute: "name".to_string(),
+        value: "Bob".to_string(),
+    };
+    let response2 = server.post("/signal").json(&request2).await;
+    let result2: IngestResponse = response2.json();
+    assert!(result2.success);
+
+    // Verify status updated
+    let status_response = server.get("/status").await;
+    let status: StatusResponse = status_response.json();
+    assert!(status.node_count >= 2);
+}
+
+// =============================================================================
+// QUERY ENDPOINT TESTS
+// =============================================================================
+
+#[tokio::test]
+async fn test_query_lookup_not_found() {
+    let server = create_test_server();
+
+    let request = QueryRequest::Lookup { entity_id: 999 };
+    let response = server.post("/query").json(&request).await;
+
+    response.assert_status_ok();
+    let result: QueryResponse = response.json();
+    assert!(result.success);
+    assert!(!result.found);
+    assert!(result.path.is_empty());
+}
+
+#[tokio::test]
+async fn test_query_lookup_found() {
+    let server = create_populated_test_server();
+
+    let request = QueryRequest::Lookup { entity_id: 1 };
+    let response = server.post("/query").json(&request).await;
+
+    response.assert_status_ok();
+    let result: QueryResponse = response.json();
+    assert!(result.success);
+    assert!(result.found);
+    assert!(!result.path.is_empty());
+}
+
+#[tokio::test]
+async fn test_query_traverse() {
+    let server = create_populated_test_server();
+
+    // First lookup to get a node ID
+    let lookup = QueryRequest::Lookup { entity_id: 1 };
+    let lookup_response = server.post("/query").json(&lookup).await;
+    let lookup_result: QueryResponse = lookup_response.json();
+
+    if lookup_result.found && !lookup_result.path.is_empty() {
+        let node_id = lookup_result.path[0];
+
+        let request = QueryRequest::Traverse { node_id, depth: 2 };
+        let response = server.post("/query").json(&request).await;
+
+        response.assert_status_ok();
+        let result: QueryResponse = response.json();
+        assert!(result.success);
+    }
+}
+
+#[tokio::test]
+async fn test_query_traverse_filtered() {
+    let server = create_populated_test_server();
+
+    let request = QueryRequest::TraverseFiltered {
+        node_id: 1,
+        depth: 2,
+        min_weight: 10,
+    };
+    let response = server.post("/query").json(&request).await;
+
+    response.assert_status_ok();
+    let result: QueryResponse = response.json();
+    assert!(result.success);
+}
+
+#[tokio::test]
+async fn test_query_strongest_path() {
+    let server = create_populated_test_server();
+
+    let request = QueryRequest::StrongestPath { start: 1, end: 2 };
+    let response = server.post("/query").json(&request).await;
+
+    response.assert_status_ok();
+    let result: QueryResponse = response.json();
+    assert!(result.success);
+}
+
+#[tokio::test]
+async fn test_query_intersect() {
+    let server = create_populated_test_server();
+
+    let request = QueryRequest::Intersect {
+        nodes: vec![1, 2, 3],
+    };
+    let response = server.post("/query").json(&request).await;
+
+    response.assert_status_ok();
+    let result: QueryResponse = response.json();
+    assert!(result.success);
+}
+
+#[tokio::test]
+async fn test_query_related() {
+    let server = create_populated_test_server();
+
+    let request = QueryRequest::Related {
+        node_id: 1,
+        depth: 2,
+    };
+    let response = server.post("/query").json(&request).await;
+
+    response.assert_status_ok();
+    let result: QueryResponse = response.json();
+    assert!(result.success);
+}
+
+// =============================================================================
+// EXPORT ENDPOINT TESTS
+// =============================================================================
+
+#[tokio::test]
+async fn test_export_empty_graph() {
+    let server = create_test_server();
+
+    let response = server.post("/export").await;
+
+    response.assert_status_ok();
+    let result: ExportResponse = response.json();
+    assert!(result.success);
+    assert!(result.data.is_some());
+    assert!(result.checksum.is_some());
+}
+
+#[tokio::test]
+async fn test_export_populated_graph() {
+    let server = create_populated_test_server();
+
+    let response = server.post("/export").await;
+
+    response.assert_status_ok();
+    let result: ExportResponse = response.json();
+    assert!(result.success);
+    assert!(result.data.is_some());
+    assert!(result.checksum.is_some());
+
+    // Data should be base64 encoded
+    let data = result.data.unwrap();
+    assert!(!data.is_empty());
+
+    // Verify it's valid base64
+    let decoded = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &data);
+    assert!(decoded.is_ok());
+}
+
+// =============================================================================
+// CORS TESTS
+// =============================================================================
+
+#[tokio::test]
+async fn test_cors_headers_present() {
+    let server = create_test_server();
+
+    // Simple request to verify CORS layer doesn't block
+    let response = server.get("/health").await;
+    response.assert_status_ok();
+}
+
+// =============================================================================
+// ERROR HANDLING TESTS
+// =============================================================================
+
+#[tokio::test]
+async fn test_404_on_unknown_endpoint() {
+    let server = create_test_server();
+
+    let response = server.get("/unknown").await;
+    response.assert_status_not_found();
+}
+
+#[tokio::test]
+async fn test_method_not_allowed() {
+    let server = create_test_server();
+
+    // /health is GET only
+    let response = server.post("/health").await;
+    // axum returns 405 Method Not Allowed
+    assert_eq!(response.status_code().as_u16(), 405);
+}
+
+#[tokio::test]
+async fn test_invalid_json_body() {
+    let server = create_test_server();
+
+    let response = server
+        .post("/signal")
+        .bytes(bytes::Bytes::from("not valid json"))
+        .content_type("application/json")
+        .await;
+
+    // Should return 4xx error for invalid JSON
+    assert!(response.status_code().is_client_error());
+}

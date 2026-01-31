@@ -1,0 +1,58 @@
+# =============================================================================
+# KREMIS RUNTIME CONFIGURATION (REFERENCE)
+# =============================================================================
+#
+# NOTE: This file is a REFERENCE configuration. It is NOT currently read
+# by the Kremis server at startup. The server uses CLI arguments and
+# environment variables for configuration:
+#
+#   CLI:  kremis server --host 0.0.0.0 --port 8080
+#   ENV:  KREMIS_API_KEY, KREMIS_RATE_LIMIT, KREMIS_CORS_ORIGINS
+#
+# This file documents the available settings and their default values
+# for future configuration file support.
+#
+# =============================================================================
+
+[server]
+# Host to bind the HTTP server
+host = "127.0.0.1"
+
+# Port to bind the HTTP server
+port = 8080
+
+# Storage backend: "redb" (recommended) or "file"
+backend = "redb"
+
+# Path to the database file
+database = "kremis.db"
+
+# =============================================================================
+# STAGE THRESHOLDS
+# =============================================================================
+# These can be customized for different deployment scenarios.
+# Default values for stage assessment.
+
+[stages]
+# S1: Pattern Crystallization (stable edges required)
+s1_threshold = 100
+
+# S2: Causal Chaining
+s2_threshold = 1000
+
+# S3: Recursive Optimization
+s3_threshold = 5000
+
+# Weight threshold for "stable" edges
+stable_threshold = 10
+
+# =============================================================================
+# LOGGING
+# =============================================================================
+
+[logging]
+# Log level: "error", "warn", "info", "debug", "trace"
+level = "info"
+
+# Enable structured JSON logging
+json = false

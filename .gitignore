@@ -1,0 +1,36 @@
+# Rust build artifacts
+/target
+
+# Database files (generated at runtime)
+*.db
+
+# Export artifacts (generated at runtime)
+*.bin
+
+# Claude Code
+tmpclaude*
+.claude/
+.agent/
+
+# Python (for archived cortex code)
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db

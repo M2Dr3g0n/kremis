@@ -1,0 +1,58 @@
+[workspace]
+members = [
+    "crates/kremis-core",
+    "apps/kremis",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/M2Dr3g0n/kremis"
+homepage = "https://github.com/M2Dr3g0n/kremis"
+documentation = "https://docs.rs/kremis-core"
+readme = "README.md"
+keywords = ["graph", "deterministic", "ai", "knowledge-graph"]
+categories = ["data-structures", "algorithms"]
+
+# =============================================================================
+# WORKSPACE LINTS (inherited by all crates)
+# =============================================================================
+
+[workspace.lints.clippy]
+# Critical denials
+float_arithmetic = "deny"
+# Allowed across workspace for ergonomics
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+doc_markdown = "allow"
+similar_names = "allow"
+
+[workspace.dependencies]
+# =============================================================================
+# CORE DEPENDENCIES (THE LOGIC - Pure Determinism)
+# =============================================================================
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "2.0"
+redb = "3.1"
+postcard = { version = "1.1", features = ["use-std"] }
+
+# =============================================================================
+# APP DEPENDENCIES (THE BINARY - Server + CLI)
+# =============================================================================
+clap = { version = "4.5", features = ["derive"] }
+serde_json = { version = "1.0", features = ["preserve_order"] }
+tokio = { version = "1.49", features = ["rt-multi-thread", "macros", "net", "io-util", "sync", "time", "signal"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+axum = "0.8"
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+base64 = "0.22"
+
+# DEV / TESTS
+proptest = "1.9"
+tempfile = "3.24"

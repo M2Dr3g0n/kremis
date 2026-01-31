@@ -1,0 +1,83 @@
+# =============================================================================
+# KREMIS-CORE - THE LOGIC
+# =============================================================================
+#
+# This crate is the deterministic Graph Engine for Kremis.
+# It merges the old kremis-types, kremis-core, and selected facet logic.
+#
+# ARCHITECTURAL CONSTRAINTS (per AGENTS.md):
+# - Pure Rust: No async, no network dependencies
+# - Deterministic: BTreeMap only, no HashMap, no floats, no randomness
+# - Minimal: Only what's essential for signal processing
+# - Closed: No external logic injection
+#
+# MERGED FROM:
+# - kremis-types (core type definitions)
+# - kremis-core (graph engine)
+# - kremis-facet-std/persistence.rs (serialization formats)
+# - kremis-facet-system/stage.rs (stage assessment)
+# =============================================================================
+
+[package]
+name = "kremis-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Deterministic Graph Engine for Kremis - THE LOGIC"
+
+[features]
+default = []
+# M1 FIX: Enable cryptographic hashing for export verification
+# This adds BLAKE3 as an optional dependency for secure export checksums
+crypto-hash = ["dep:blake3"]
+
+[dependencies]
+# CORE (per AGENTS.md Section 5.9 - CORE Approved)
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+redb = { workspace = true }
+postcard = { workspace = true }
+# Optional: BLAKE3 for cryptographic export hashing (M1 FIX)
+# Uses pure Rust implementation for maximum portability (no SIMD assembly)
+blake3 = { version = "1", optional = true, default-features = false }
+
+[dev-dependencies]
+proptest = { workspace = true }
+tempfile = { workspace = true }
+criterion = { version = "0.8", features = ["html_reports"] }
+
+[[bench]]
+name = "graph_bench"
+harness = false
+
+# =============================================================================
+# CLIPPY LINTS (per AGENTS.md Section 5.8)
+# =============================================================================
+
+[lints.clippy]
+# Critical denials (per AGENTS.md Section 5.8)
+float_arithmetic = "deny"
+unwrap_used = "deny"
+panic = "deny"
+# Allowed for API ergonomics
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+doc_markdown = "allow"
+similar_names = "allow"
+too_many_lines = "allow"
+format_push_string = "allow"
+missing_fields_in_debug = "allow"
+cast_lossless = "allow"
+cast_possible_truncation = "allow"
+cast_sign_loss = "allow"
+cast_possible_wrap = "allow"
+if_not_else = "allow"
+map_unwrap_or = "allow"
+trivially_copy_pass_by_ref = "allow"
+uninlined_format_args = "allow"
+unnecessary_wraps = "allow"
+unused_self = "allow"
+redundant_closure_for_method_calls = "allow"
+needless_pass_by_value = "allow"

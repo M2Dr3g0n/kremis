@@ -1,0 +1,85 @@
+# =============================================================================
+# APPS/KREMIS - THE BINARY
+# =============================================================================
+#
+# This crate is the main Kremis application binary.
+# It provides:
+# - HTTP Server (axum-based REST API)
+# - CLI Interface (clap-based commands)
+# - Process Manager (for plugin orchestration)
+#
+# MERGED FROM:
+# - kremis (old CLI binary)
+# - kremis-facet-server (HTTP server)
+# - kremis-facet-std (file I/O for CLI)
+#
+# ARCHITECTURAL NOTES:
+# - This is the only async/network-aware component
+# - Uses kremis-core as the pure deterministic engine
+# - Plugins communicate via HTTP (no direct Rust integration)
+# =============================================================================
+
+[package]
+name = "kremis"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Kremis Honest AGI Server - THE BINARY"
+
+[lib]
+name = "kremis"
+path = "src/lib.rs"
+
+[[bin]]
+name = "kremis"
+path = "src/main.rs"
+
+[dependencies]
+# Internal dependency
+kremis-core = { path = "../../crates/kremis-core" }
+
+# App dependencies (per AGENTS.md Section 5.9 - FACETS only)
+tokio = { workspace = true }
+axum = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+base64 = { workspace = true }
+governor = "0.10"
+subtle = "2.6"  # Constant-time comparison for API key auth (H1 fix)
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+axum-test = "18"
+bytes = "1"
+
+# =============================================================================
+# CLIPPY LINTS
+# =============================================================================
+
+[lints.clippy]
+# Inherit critical denials (per AGENTS.md Section 5.8)
+float_arithmetic = "deny"
+unwrap_used = "deny"
+panic = "deny"
+# Allow more flexibility in app layer
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+too_many_lines = "allow"
+too_many_arguments = "allow"
+# Additional allows for app ergonomics
+doc_markdown = "allow"
+similar_names = "allow"
+cast_lossless = "allow"
+cast_possible_truncation = "allow"
+if_not_else = "allow"
+trivially_copy_pass_by_ref = "allow"
+uninlined_format_args = "allow"
+needless_pass_by_value = "allow"
