@@ -608,11 +608,11 @@ curl -X POST http://localhost:8080/signal \
 curl -X POST http://localhost:8080/signal \
      -H "Content-Type: application/json" \
      -d '{"entity_id": 1, "attribute": "knows", "value": "Bob"}'
-# {"success":true,"node_id":2,"error":null}
+# {"success":true,"node_id":0,"error":null}
 
 # 3. Check graph status
 curl http://localhost:8080/status
-# {"node_count":3,"edge_count":2,"stable_edges":0,"density_millionths":666666}
+# {"node_count":2,"edge_count":0,"stable_edges":0,"density_millionths":0}
 
 # 4. Query the graph
 curl -X POST http://localhost:8080/query \
@@ -622,7 +622,7 @@ curl -X POST http://localhost:8080/query \
 
 # 5. Check developmental stage
 curl http://localhost:8080/stage
-# {"stage":"S0","name":"Genesis","progress_percent":0,"stable_edges_needed":10,"stable_edges_current":0}
+# {"stage":"S0","name":"Signal Segmentation","progress_percent":0,"stable_edges_needed":100,"stable_edges_current":0}
 ```
 
 ---
