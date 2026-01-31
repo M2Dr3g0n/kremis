@@ -12,6 +12,9 @@ tmpclaude*
 .claude/
 .agent/
 
+# Archived code (kept locally, not published)
+_archive/
+
 # Python (for archived cortex code)
 __pycache__/
 *.py[cod]

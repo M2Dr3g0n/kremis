@@ -1,1 +1,0 @@
-# Kremis CORTEX Test Suite
