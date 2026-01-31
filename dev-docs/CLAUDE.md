@@ -54,10 +54,9 @@ kremis/
 ├── dev-docs/                # Documentation
 │   ├── CLAUDE.md            # This file
 │   └── ROADMAP.md           # Implementation status
-├── docs/
-│   ├── API.md               # HTTP API docs
-│   └── CLI.md               # CLI docs
-└── _archive/                # Archived components (SDK, Cortex, old docs)
+└── docs/
+    ├── API.md               # HTTP API docs
+    └── CLI.md               # CLI docs
 ```
 
 ## Workspace Members
@@ -75,5 +74,5 @@ kremis/
 
 ---
 
-**Last Updated:** 2026-01-30
+**Last Updated:** 2026-01-31
 **Version:** 0.1.0
