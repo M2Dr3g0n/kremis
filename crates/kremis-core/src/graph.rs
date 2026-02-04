@@ -73,13 +73,6 @@ pub trait GraphStore {
         end: NodeId,
     ) -> Result<Option<Vec<NodeId>>, KremisError>;
 
-    /// Extract a related subgraph from a starting node.
-    fn related_subgraph(
-        &self,
-        start: NodeId,
-        depth: usize,
-    ) -> Result<Option<Artifact>, KremisError>;
-
     /// Get the total number of nodes.
     fn node_count(&self) -> Result<usize, KremisError>;
 
@@ -457,15 +450,6 @@ impl GraphStore for Graph {
         path.reverse();
 
         Ok(Some(path))
-    }
-
-    fn related_subgraph(
-        &self,
-        start: NodeId,
-        depth: usize,
-    ) -> Result<Option<Artifact>, KremisError> {
-        // Same as traverse, included for API completeness
-        self.traverse(start, depth)
     }
 
     fn node_count(&self) -> Result<usize, KremisError> {

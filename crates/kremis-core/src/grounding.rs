@@ -111,14 +111,6 @@ pub fn verify_hypothesis(graph: &Graph, query: Query) -> GroundedResult {
             _ => GroundedResult::unverified(),
         },
 
-        QueryType::RelatedSubgraph { start, depth } => match graph.related_subgraph(start, depth) {
-            Ok(Some(artifact)) => {
-                let confidence = compute_confidence(&artifact, graph);
-                GroundedResult::with_artifact(artifact, confidence)
-            }
-            _ => GroundedResult::unverified(),
-        },
-
         QueryType::TraverseDfs { start, depth } => {
             if let Some(artifact) = graph.traverse_dfs(start, depth) {
                 let confidence = compute_confidence(&artifact, graph);

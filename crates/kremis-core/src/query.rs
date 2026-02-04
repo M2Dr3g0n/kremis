@@ -31,9 +31,6 @@ pub enum QueryType {
     /// Find nodes connected to ALL input nodes.
     Intersect(Vec<NodeId>),
 
-    /// Extract a related subgraph from a starting node.
-    RelatedSubgraph { start: NodeId, depth: usize },
-
     /// Depth-first traversal.
     TraverseDfs { start: NodeId, depth: usize },
 }
@@ -89,12 +86,6 @@ impl Query {
     pub fn intersect(nodes: Vec<NodeId>) -> Self {
         Self::new(QueryType::Intersect(nodes))
     }
-
-    /// Related subgraph helper.
-    #[must_use]
-    pub fn related_subgraph(start: NodeId, depth: usize) -> Self {
-        Self::new(QueryType::RelatedSubgraph { start, depth })
-    }
 }
 
 // =============================================================================
@@ -129,6 +120,5 @@ mod tests {
         let _ = Query::traverse(NodeId(1), 10);
         let _ = Query::strongest_path(NodeId(1), NodeId(2));
         let _ = Query::intersect(vec![NodeId(1), NodeId(2)]);
-        let _ = Query::related_subgraph(NodeId(1), 5);
     }
 }

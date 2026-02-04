@@ -87,7 +87,7 @@ impl Compositor {
         start: NodeId,
         depth: usize,
     ) -> Result<Option<Artifact>, KremisError> {
-        graph.related_subgraph(start, depth)
+        graph.traverse(start, depth)
     }
 }
 

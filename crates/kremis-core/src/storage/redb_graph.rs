@@ -570,14 +570,6 @@ impl GraphStore for RedbGraph {
         Ok(Some(path))
     }
 
-    fn related_subgraph(
-        &self,
-        start: NodeId,
-        depth: usize,
-    ) -> Result<Option<Artifact>, KremisError> {
-        self.traverse(start, depth)
-    }
-
     fn node_count(&self) -> Result<usize, KremisError> {
         let read_txn = self
             .db
