@@ -3,8 +3,11 @@
 //! Uses axum-test to test the API handlers without starting a real server.
 
 // Allow unwrap and panic in tests - these are standard for test code
-#![allow(clippy::unwrap_used, clippy::panic)]
+// Allow holding MutexGuard across await in auth tests - tests are serialized
+// intentionally to avoid env var conflicts
+#![allow(clippy::unwrap_used, clippy::panic, clippy::await_holding_lock)]
 
+use axum::http::HeaderValue;
 use axum_test::TestServer;
 use kremis::api::{
     create_router, AppState, ExportResponse, HealthResponse, IngestRequest, IngestResponse,
@@ -12,22 +15,47 @@ use kremis::api::{
 };
 use kremis_core::Session;
 use serde_json::json;
+use std::sync::Mutex;
+
+/// Mutex to serialize auth tests since they modify env vars.
+static AUTH_TEST_MUTEX: Mutex<()> = Mutex::new(());
 
 // =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================
 
+/// Guard wrapper that holds the mutex and ensures cleanup on drop.
+struct TestGuard {
+    _guard: std::sync::MutexGuard<'static, ()>,
+}
+
+impl Drop for TestGuard {
+    fn drop(&mut self) {
+        std::env::remove_var("KREMIS_API_KEY");
+    }
+}
+
 /// Create a test server with a fresh in-memory session.
-fn create_test_server() -> TestServer {
+/// Returns a guard that must be kept alive during the test.
+fn create_test_server() -> (TestServer, TestGuard) {
+    let guard = AUTH_TEST_MUTEX.lock().unwrap();
+    std::env::remove_var("KREMIS_API_KEY");
     let session = Session::new();
     let state = AppState::new(session);
     let router = create_router(state);
-    TestServer::new(router).unwrap()
+    (
+        TestServer::new(router).unwrap(),
+        TestGuard { _guard: guard },
+    )
 }
 
 /// Create a test server with some pre-populated data.
-fn create_populated_test_server() -> TestServer {
+/// Returns a guard that must be kept alive during the test.
+fn create_populated_test_server() -> (TestServer, TestGuard) {
     use kremis_core::{Attribute, EntityId, Signal, Value};
+
+    let guard = AUTH_TEST_MUTEX.lock().unwrap();
+    std::env::remove_var("KREMIS_API_KEY");
 
     let mut session = Session::new();
 
@@ -42,7 +70,10 @@ fn create_populated_test_server() -> TestServer {
 
     let state = AppState::new(session);
     let router = create_router(state);
-    TestServer::new(router).unwrap()
+    (
+        TestServer::new(router).unwrap(),
+        TestGuard { _guard: guard },
+    )
 }
 
 // =============================================================================
@@ -51,7 +82,7 @@ fn create_populated_test_server() -> TestServer {
 
 #[tokio::test]
 async fn test_health_endpoint() {
-    let server = create_test_server();
+    let (server, _guard) = create_test_server();
 
     let response = server.get("/health").await;
 
@@ -63,7 +94,7 @@ async fn test_health_endpoint() {
 
 #[tokio::test]
 async fn test_health_returns_correct_version() {
-    let server = create_test_server();
+    let (server, _guard) = create_test_server();
 
     let response = server.get("/health").await;
     let health: HealthResponse = response.json();
@@ -78,7 +109,7 @@ async fn test_health_returns_correct_version() {
 
 #[tokio::test]
 async fn test_status_empty_graph() {
-    let server = create_test_server();
+    let (server, _guard) = create_test_server();
 
     let response = server.get("/status").await;
 
@@ -91,7 +122,7 @@ async fn test_status_empty_graph() {
 
 #[tokio::test]
 async fn test_status_populated_graph() {
-    let server = create_populated_test_server();
+    let (server, _guard) = create_populated_test_server();
 
     let response = server.get("/status").await;
 
@@ -107,7 +138,7 @@ async fn test_status_populated_graph() {
 
 #[tokio::test]
 async fn test_stage_empty_graph() {
-    let server = create_test_server();
+    let (server, _guard) = create_test_server();
 
     let response = server.get("/stage").await;
 
@@ -120,7 +151,7 @@ async fn test_stage_empty_graph() {
 
 #[tokio::test]
 async fn test_stage_returns_valid_stage() {
-    let server = create_populated_test_server();
+    let (server, _guard) = create_populated_test_server();
 
     let response = server.get("/stage").await;
     let stage: StageResponse = response.json();
@@ -140,7 +171,7 @@ async fn test_stage_returns_valid_stage() {
 
 #[tokio::test]
 async fn test_ingest_valid_signal() {
-    let server = create_test_server();
+    let (server, _guard) = create_test_server();
 
     let request = IngestRequest {
         entity_id: 1,
@@ -159,7 +190,7 @@ async fn test_ingest_valid_signal() {
 
 #[tokio::test]
 async fn test_ingest_empty_attribute() {
-    let server = create_test_server();
+    let (server, _guard) = create_test_server();
 
     let request = json!({
         "entity_id": 1,
@@ -177,7 +208,7 @@ async fn test_ingest_empty_attribute() {
 
 #[tokio::test]
 async fn test_ingest_empty_value() {
-    let server = create_test_server();
+    let (server, _guard) = create_test_server();
 
     let request = json!({
         "entity_id": 1,
@@ -194,7 +225,7 @@ async fn test_ingest_empty_value() {
 
 #[tokio::test]
 async fn test_ingest_multiple_signals() {
-    let server = create_test_server();
+    let (server, _guard) = create_test_server();
 
     // Ingest first signal
     let request1 = IngestRequest {
@@ -228,7 +259,7 @@ async fn test_ingest_multiple_signals() {
 
 #[tokio::test]
 async fn test_query_lookup_not_found() {
-    let server = create_test_server();
+    let (server, _guard) = create_test_server();
 
     let request = QueryRequest::Lookup { entity_id: 999 };
     let response = server.post("/query").json(&request).await;
@@ -242,7 +273,7 @@ async fn test_query_lookup_not_found() {
 
 #[tokio::test]
 async fn test_query_lookup_found() {
-    let server = create_populated_test_server();
+    let (server, _guard) = create_populated_test_server();
 
     let request = QueryRequest::Lookup { entity_id: 1 };
     let response = server.post("/query").json(&request).await;
@@ -256,7 +287,7 @@ async fn test_query_lookup_found() {
 
 #[tokio::test]
 async fn test_query_traverse() {
-    let server = create_populated_test_server();
+    let (server, _guard) = create_populated_test_server();
 
     // First lookup to get a node ID
     let lookup = QueryRequest::Lookup { entity_id: 1 };
@@ -297,7 +328,7 @@ async fn test_query_traverse() {
 
 #[tokio::test]
 async fn test_query_traverse_filtered() {
-    let server = create_populated_test_server();
+    let (server, _guard) = create_populated_test_server();
 
     // First verify node 1 exists
     let lookup = QueryRequest::Lookup { entity_id: 1 };
@@ -344,7 +375,7 @@ async fn test_query_traverse_filtered() {
 
 #[tokio::test]
 async fn test_query_strongest_path() {
-    let server = create_populated_test_server();
+    let (server, _guard) = create_populated_test_server();
 
     // First verify both nodes exist
     let lookup1 = QueryRequest::Lookup { entity_id: 1 };
@@ -386,7 +417,7 @@ async fn test_query_strongest_path() {
 
 #[tokio::test]
 async fn test_query_intersect() {
-    let server = create_populated_test_server();
+    let (server, _guard) = create_populated_test_server();
 
     // Get actual node IDs from lookups
     let lookup1 = QueryRequest::Lookup { entity_id: 1 };
@@ -417,7 +448,7 @@ async fn test_query_intersect() {
 
 #[tokio::test]
 async fn test_query_intersect_nonexistent_nodes() {
-    let server = create_test_server();
+    let (server, _guard) = create_test_server();
 
     // Query with nodes that don't exist
     let request = QueryRequest::Intersect {
@@ -440,7 +471,7 @@ async fn test_query_intersect_nonexistent_nodes() {
 
 #[tokio::test]
 async fn test_query_related() {
-    let server = create_populated_test_server();
+    let (server, _guard) = create_populated_test_server();
 
     // First get actual node ID
     let lookup = QueryRequest::Lookup { entity_id: 1 };
@@ -469,7 +500,7 @@ async fn test_query_related() {
 
 #[tokio::test]
 async fn test_query_related_nonexistent_node() {
-    let server = create_test_server();
+    let (server, _guard) = create_test_server();
 
     let request = QueryRequest::Related {
         node_id: 99999,
@@ -496,7 +527,7 @@ async fn test_query_related_nonexistent_node() {
 
 #[tokio::test]
 async fn test_export_empty_graph() {
-    let server = create_test_server();
+    let (server, _guard) = create_test_server();
 
     let response = server.post("/export").await;
 
@@ -509,7 +540,7 @@ async fn test_export_empty_graph() {
 
 #[tokio::test]
 async fn test_export_populated_graph() {
-    let server = create_populated_test_server();
+    let (server, _guard) = create_populated_test_server();
 
     let response = server.post("/export").await;
 
@@ -534,7 +565,7 @@ async fn test_export_populated_graph() {
 
 #[tokio::test]
 async fn test_cors_headers_present() {
-    let server = create_test_server();
+    let (server, _guard) = create_test_server();
 
     // Simple request to verify CORS layer doesn't block
     let response = server.get("/health").await;
@@ -547,7 +578,7 @@ async fn test_cors_headers_present() {
 
 #[tokio::test]
 async fn test_404_on_unknown_endpoint() {
-    let server = create_test_server();
+    let (server, _guard) = create_test_server();
 
     let response = server.get("/unknown").await;
     response.assert_status_not_found();
@@ -555,7 +586,7 @@ async fn test_404_on_unknown_endpoint() {
 
 #[tokio::test]
 async fn test_method_not_allowed() {
-    let server = create_test_server();
+    let (server, _guard) = create_test_server();
 
     // /health is GET only
     let response = server.post("/health").await;
@@ -565,7 +596,7 @@ async fn test_method_not_allowed() {
 
 #[tokio::test]
 async fn test_invalid_json_body() {
-    let server = create_test_server();
+    let (server, _guard) = create_test_server();
 
     let response = server
         .post("/signal")
@@ -575,4 +606,171 @@ async fn test_invalid_json_body() {
 
     // Should return 4xx error for invalid JSON
     assert!(response.status_code().is_client_error());
+}
+
+// =============================================================================
+// AUTHENTICATION MIDDLEWARE TESTS
+// =============================================================================
+
+/// Create a test server with authentication enabled.
+/// Must be called while holding AUTH_TEST_MUTEX.
+fn create_auth_test_server(api_key: &str) -> TestServer {
+    std::env::set_var("KREMIS_API_KEY", api_key);
+    let session = Session::new();
+    let state = AppState::new(session);
+    let router = create_router(state);
+    TestServer::new(router).unwrap()
+}
+
+/// Clean up auth env var after test.
+fn cleanup_auth_env() {
+    std::env::remove_var("KREMIS_API_KEY");
+}
+
+#[tokio::test]
+async fn test_auth_valid_bearer_token() {
+    let _guard = AUTH_TEST_MUTEX.lock().unwrap();
+    let api_key = "test-secret-key-12345";
+    let server = create_auth_test_server(api_key);
+
+    let response = server
+        .get("/status")
+        .add_header(
+            axum::http::header::AUTHORIZATION,
+            format!("Bearer {}", api_key)
+                .parse::<HeaderValue>()
+                .unwrap(),
+        )
+        .await;
+
+    cleanup_auth_env();
+
+    response.assert_status_ok();
+    let status: StatusResponse = response.json();
+    assert_eq!(status.node_count, 0);
+}
+
+#[tokio::test]
+async fn test_auth_valid_raw_token() {
+    let _guard = AUTH_TEST_MUTEX.lock().unwrap();
+    let api_key = "test-raw-key-67890";
+    let server = create_auth_test_server(api_key);
+
+    // Test raw token format (without "Bearer " prefix)
+    let response = server
+        .get("/status")
+        .add_header(
+            axum::http::header::AUTHORIZATION,
+            api_key.parse::<HeaderValue>().unwrap(),
+        )
+        .await;
+
+    cleanup_auth_env();
+
+    response.assert_status_ok();
+}
+
+#[tokio::test]
+async fn test_auth_invalid_token_rejected() {
+    let _guard = AUTH_TEST_MUTEX.lock().unwrap();
+    let api_key = "correct-key";
+    let server = create_auth_test_server(api_key);
+
+    let response = server
+        .get("/status")
+        .add_header(
+            axum::http::header::AUTHORIZATION,
+            "Bearer wrong-key".parse::<HeaderValue>().unwrap(),
+        )
+        .await;
+
+    cleanup_auth_env();
+
+    assert_eq!(
+        response.status_code().as_u16(),
+        401,
+        "Invalid token should return 401 Unauthorized"
+    );
+}
+
+#[tokio::test]
+async fn test_auth_missing_header_rejected() {
+    let _guard = AUTH_TEST_MUTEX.lock().unwrap();
+    let api_key = "required-key";
+    let server = create_auth_test_server(api_key);
+
+    // Request without Authorization header
+    let response = server.get("/status").await;
+
+    cleanup_auth_env();
+
+    assert_eq!(
+        response.status_code().as_u16(),
+        401,
+        "Missing Authorization header should return 401 Unauthorized"
+    );
+}
+
+#[tokio::test]
+async fn test_auth_health_endpoint_bypasses_auth() {
+    let _guard = AUTH_TEST_MUTEX.lock().unwrap();
+    let api_key = "secret-key-for-bypass-test";
+    let server = create_auth_test_server(api_key);
+
+    // /health should be accessible without authentication
+    let response = server.get("/health").await;
+
+    cleanup_auth_env();
+
+    response.assert_status_ok();
+    let health: HealthResponse = response.json();
+    assert_eq!(health.status, "ok");
+}
+
+#[tokio::test]
+async fn test_auth_empty_key_rejected() {
+    let _guard = AUTH_TEST_MUTEX.lock().unwrap();
+    let api_key = "non-empty-key";
+    let server = create_auth_test_server(api_key);
+
+    // Empty authorization header should be rejected
+    let response = server
+        .get("/status")
+        .add_header(
+            axum::http::header::AUTHORIZATION,
+            "".parse::<HeaderValue>().unwrap(),
+        )
+        .await;
+
+    cleanup_auth_env();
+
+    assert_eq!(
+        response.status_code().as_u16(),
+        401,
+        "Empty Authorization header should return 401 Unauthorized"
+    );
+}
+
+#[tokio::test]
+async fn test_auth_bearer_prefix_only_rejected() {
+    let _guard = AUTH_TEST_MUTEX.lock().unwrap();
+    let api_key = "actual-key";
+    let server = create_auth_test_server(api_key);
+
+    // "Bearer " with no key should be rejected
+    let response = server
+        .get("/status")
+        .add_header(
+            axum::http::header::AUTHORIZATION,
+            "Bearer ".parse::<HeaderValue>().unwrap(),
+        )
+        .await;
+
+    cleanup_auth_env();
+
+    assert_eq!(
+        response.status_code().as_u16(),
+        401,
+        "Bearer prefix with no key should return 401 Unauthorized"
+    );
 }
