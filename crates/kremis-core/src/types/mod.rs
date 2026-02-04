@@ -270,6 +270,13 @@ impl Buffer {
 /// - `emit`: Transforms an Artifact into raw bytes
 ///
 /// Facets must be `Send + Sync` for thread safety.
+///
+/// # Extension Point
+///
+/// This trait is intentionally defined without in-crate implementations.
+/// It serves as an extension point for external adapters (file parsers,
+/// network protocols, database connectors) that need to interface with
+/// the CORE. Implementors should be stateless and pure.
 pub trait Facet: Send + Sync {
     /// Ingest raw input and produce a normalized Signal.
     ///
