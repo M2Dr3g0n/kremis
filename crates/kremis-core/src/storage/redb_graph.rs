@@ -16,9 +16,11 @@
 //! `RedbGraph` persists data to disk automatically.
 
 use crate::graph::GraphStore;
-use crate::{Artifact, EdgeWeight, EntityId, KremisError, Node, NodeId};
+use crate::{Artifact, Attribute, EdgeWeight, EntityId, KremisError, Node, NodeId, Value};
 use redb::{Database, ReadableDatabase, ReadableTable, ReadableTableMetadata, TableDefinition};
+use std::collections::hash_map::DefaultHasher;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::hash::{Hash, Hasher};
 use std::path::Path;
 
 /// Table for nodes: NodeId(u64) -> serialized Node bytes
@@ -32,6 +34,10 @@ const ENTITY_INDEX: TableDefinition<u64, u64> = TableDefinition::new("entity_ind
 
 /// Table for metadata: key string -> value u64
 const METADATA: TableDefinition<&str, u64> = TableDefinition::new("metadata");
+
+/// Table for properties: (node_id, attr_hash) -> serialized (Attribute, Vec<Value>)
+/// We use attr_hash (u64) as part of the key to enable range queries per node.
+const PROPERTIES: TableDefinition<(u64, u64), &[u8]> = TableDefinition::new("properties");
 
 /// A disk-backed graph store using redb.
 ///
@@ -79,6 +85,9 @@ impl RedbGraph {
                 .map_err(|e| KremisError::IoError(e.to_string()))?;
             let _ = write_txn
                 .open_table(METADATA)
+                .map_err(|e| KremisError::IoError(e.to_string()))?;
+            let _ = write_txn
+                .open_table(PROPERTIES)
                 .map_err(|e| KremisError::IoError(e.to_string()))?;
             write_txn
                 .commit()
@@ -596,6 +605,92 @@ impl GraphStore for RedbGraph {
             .len()
             .map_err(|e| KremisError::IoError(e.to_string()))?;
         Ok(count as usize)
+    }
+
+    fn store_property(
+        &mut self,
+        node: NodeId,
+        attribute: Attribute,
+        value: Value,
+    ) -> Result<(), KremisError> {
+        // Verify node exists
+        if !self.contains_node(node)? {
+            return Err(KremisError::NodeNotFound(node));
+        }
+
+        // Hash the attribute for the key
+        let mut hasher = DefaultHasher::new();
+        attribute.as_str().hash(&mut hasher);
+        let attr_hash = hasher.finish();
+
+        let write_txn = self
+            .db
+            .begin_write()
+            .map_err(|e| KremisError::IoError(e.to_string()))?;
+        {
+            let mut props_table = write_txn
+                .open_table(PROPERTIES)
+                .map_err(|e| KremisError::IoError(e.to_string()))?;
+
+            // Read existing values for this (node, attribute) pair
+            let existing: Vec<Value> = props_table
+                .get((node.0, attr_hash))
+                .map_err(|e| KremisError::IoError(e.to_string()))?
+                .map(|data| {
+                    postcard::from_bytes::<(Attribute, Vec<Value>)>(data.value())
+                        .map(|(_, values)| values)
+                        .unwrap_or_default()
+                })
+                .unwrap_or_default();
+
+            // Append new value
+            let mut values = existing;
+            values.push(value);
+
+            // Serialize and store
+            let prop_bytes = postcard::to_allocvec(&(attribute, values))
+                .map_err(|e| KremisError::SerializationError(e.to_string()))?;
+            props_table
+                .insert((node.0, attr_hash), prop_bytes.as_slice())
+                .map_err(|e| KremisError::IoError(e.to_string()))?;
+        }
+        write_txn
+            .commit()
+            .map_err(|e| KremisError::IoError(e.to_string()))?;
+
+        Ok(())
+    }
+
+    fn get_properties(&self, node: NodeId) -> Result<Vec<(Attribute, Value)>, KremisError> {
+        // Verify node exists
+        if !self.contains_node(node)? {
+            return Err(KremisError::NodeNotFound(node));
+        }
+
+        let read_txn = self
+            .db
+            .begin_read()
+            .map_err(|e| KremisError::IoError(e.to_string()))?;
+        let props_table = read_txn
+            .open_table(PROPERTIES)
+            .map_err(|e| KremisError::IoError(e.to_string()))?;
+
+        let mut result = Vec::new();
+
+        // Range query for all properties of this node
+        for entry in props_table
+            .range((node.0, 0u64)..=(node.0, u64::MAX))
+            .map_err(|e| KremisError::IoError(e.to_string()))?
+        {
+            let (_, data) = entry.map_err(|e| KremisError::IoError(e.to_string()))?;
+            let (attr, values): (Attribute, Vec<Value>) = postcard::from_bytes(data.value())
+                .map_err(|e| KremisError::DeserializationError(e.to_string()))?;
+            for value in values {
+                result.push((attr.clone(), value));
+            }
+        }
+
+        Ok(result)
     }
 }
 
@@ -1266,5 +1361,111 @@ mod tests {
 
         let result = graph.intersect(&[n1, n2]).expect("intersect");
         assert!(result.is_empty());
+    }
+
+    // =========================================================================
+    // Property storage tests
+    // =========================================================================
+
+    #[test]
+    fn store_and_get_properties() {
+        let temp = tempdir().expect("temp dir");
+        let db_path = temp.path().join("test.redb");
+        let mut graph = RedbGraph::open(&db_path).expect("open db");
+
+        let node = graph.insert_node(EntityId(1)).expect("insert");
+
+        graph
+            .store_property(node, Attribute::new("name"), Value::new("Alice"))
+            .expect("store");
+        graph
+            .store_property(node, Attribute::new("age"), Value::new("30"))
+            .expect("store");
+
+        let props = graph.get_properties(node).expect("get");
+        assert_eq!(props.len(), 2);
+        assert!(props.contains(&(Attribute::new("name"), Value::new("Alice"))));
+        assert!(props.contains(&(Attribute::new("age"), Value::new("30"))));
+    }
+
+    #[test]
+    fn store_multiple_values_same_attribute() {
+        let temp = tempdir().expect("temp dir");
+        let db_path = temp.path().join("test.redb");
+        let mut graph = RedbGraph::open(&db_path).expect("open db");
+
+        let node = graph.insert_node(EntityId(1)).expect("insert");
+
+        graph
+            .store_property(node, Attribute::new("knows"), Value::new("Bob"))
+            .expect("store");
+        graph
+            .store_property(node, Attribute::new("knows"), Value::new("Charlie"))
+            .expect("store");
+
+        let props = graph.get_properties(node).expect("get");
+        assert_eq!(props.len(), 2);
+        assert!(props.contains(&(Attribute::new("knows"), Value::new("Bob"))));
+        assert!(props.contains(&(Attribute::new("knows"), Value::new("Charlie"))));
+    }
+
+    #[test]
+    fn store_property_nonexistent_node_fails() {
+        let temp = tempdir().expect("temp dir");
+        let db_path = temp.path().join("test.redb");
+        let mut graph = RedbGraph::open(&db_path).expect("open db");
+
+        let result = graph.store_property(NodeId(999), Attribute::new("name"), Value::new("Test"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn get_properties_nonexistent_node_fails() {
+        let temp = tempdir().expect("temp dir");
+        let db_path = temp.path().join("test.redb");
+        let graph = RedbGraph::open(&db_path).expect("open db");
+
+        let result = graph.get_properties(NodeId(999));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn get_properties_empty_returns_empty_vec() {
+        let temp = tempdir().expect("temp dir");
+        let db_path = temp.path().join("test.redb");
+        let mut graph = RedbGraph::open(&db_path).expect("open db");
+
+        let node = graph.insert_node(EntityId(1)).expect("insert");
+
+        let props = graph.get_properties(node).expect("get");
+        assert!(props.is_empty());
+    }
+
+    #[test]
+    fn properties_persist_after_reopen() {
+        let temp = tempdir().expect("temp dir");
+        let db_path = temp.path().join("test.redb");
+
+        // Phase 1: Create node with properties
+        let node_id;
+        {
+            let mut graph = RedbGraph::open(&db_path).expect("open db");
+            node_id = graph.insert_node(EntityId(42)).expect("insert");
+            graph
+                .store_property(node_id, Attribute::new("name"), Value::new("Alice"))
+                .expect("store");
+            graph
+                .store_property(node_id, Attribute::new("city"), Value::new("Paris"))
+                .expect("store");
+        }
+
+        // Phase 2: Reopen and verify properties persisted
+        {
+            let graph = RedbGraph::open(&db_path).expect("reopen db");
+            let props = graph.get_properties(node_id).expect("get");
+            assert_eq!(props.len(), 2);
+            assert!(props.contains(&(Attribute::new("name"), Value::new("Alice"))));
+            assert!(props.contains(&(Attribute::new("city"), Value::new("Paris"))));
+        }
     }
 }

@@ -5,7 +5,7 @@
 //! This module implements `GraphStore` trait from AGENTS.md Section 5.6.
 //! All data structures use `BTreeMap` for deterministic ordering.
 
-use crate::{Artifact, EdgeWeight, EntityId, KremisError, Node, NodeId};
+use crate::{Artifact, Attribute, EdgeWeight, EntityId, KremisError, Node, NodeId, Value};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 // =============================================================================
@@ -78,6 +78,22 @@ pub trait GraphStore {
 
     /// Get the total number of edges.
     fn edge_count(&self) -> Result<usize, KremisError>;
+
+    /// Store a property (attribute, value) for a node.
+    ///
+    /// This persists the full signal data beyond just the entity.
+    /// Multiple values can be stored for the same attribute.
+    fn store_property(
+        &mut self,
+        node: NodeId,
+        attribute: Attribute,
+        value: Value,
+    ) -> Result<(), KremisError>;
+
+    /// Get all properties for a node.
+    ///
+    /// Returns a list of (Attribute, Value) pairs associated with this node.
+    fn get_properties(&self, node: NodeId) -> Result<Vec<(Attribute, Value)>, KremisError>;
 }
 
 // =============================================================================
@@ -98,6 +114,10 @@ pub struct Graph {
 
     /// Reverse lookup: EntityId -> NodeId
     entity_index: BTreeMap<EntityId, NodeId>,
+
+    /// Node properties: NodeId -> Attribute -> [Values]
+    /// Stores the full signal data (attribute, value) for each node.
+    properties: BTreeMap<NodeId, BTreeMap<Attribute, Vec<Value>>>,
 
     /// Next available NodeId
     next_node_id: u64,
@@ -459,6 +479,39 @@ impl GraphStore for Graph {
     fn edge_count(&self) -> Result<usize, KremisError> {
         Ok(self.edges.values().map(BTreeMap::len).sum())
     }
+
+    fn store_property(
+        &mut self,
+        node: NodeId,
+        attribute: Attribute,
+        value: Value,
+    ) -> Result<(), KremisError> {
+        if !self.nodes.contains_key(&node) {
+            return Err(KremisError::NodeNotFound(node));
+        }
+        self.properties
+            .entry(node)
+            .or_default()
+            .entry(attribute)
+            .or_default()
+            .push(value);
+        Ok(())
+    }
+
+    fn get_properties(&self, node: NodeId) -> Result<Vec<(Attribute, Value)>, KremisError> {
+        if !self.nodes.contains_key(&node) {
+            return Err(KremisError::NodeNotFound(node));
+        }
+        let mut result = Vec::new();
+        if let Some(attrs) = self.properties.get(&node) {
+            for (attr, values) in attrs {
+                for value in values {
+                    result.push((attr.clone(), value.clone()));
+                }
+            }
+        }
+        Ok(result)
+    }
 }
 
 // =============================================================================
@@ -738,5 +791,64 @@ mod tests {
             restored.get_edge(a, b).expect("get"),
             Some(EdgeWeight::new(5))
         );
+    }
+
+    #[test]
+    fn store_and_get_properties() {
+        let mut graph = Graph::new();
+        let node = graph.insert_node(EntityId(1)).expect("insert");
+
+        graph
+            .store_property(node, Attribute::new("name"), Value::new("Alice"))
+            .expect("store");
+        graph
+            .store_property(node, Attribute::new("age"), Value::new("30"))
+            .expect("store");
+
+        let props = graph.get_properties(node).expect("get");
+        assert_eq!(props.len(), 2);
+        assert!(props.contains(&(Attribute::new("name"), Value::new("Alice"))));
+        assert!(props.contains(&(Attribute::new("age"), Value::new("30"))));
+    }
+
+    #[test]
+    fn store_multiple_values_same_attribute() {
+        let mut graph = Graph::new();
+        let node = graph.insert_node(EntityId(1)).expect("insert");
+
+        graph
+            .store_property(node, Attribute::new("knows"), Value::new("Bob"))
+            .expect("store");
+        graph
+            .store_property(node, Attribute::new("knows"), Value::new("Charlie"))
+            .expect("store");
+
+        let props = graph.get_properties(node).expect("get");
+        assert_eq!(props.len(), 2);
+        assert!(props.contains(&(Attribute::new("knows"), Value::new("Bob"))));
+        assert!(props.contains(&(Attribute::new("knows"), Value::new("Charlie"))));
+    }
+
+    #[test]
+    fn store_property_nonexistent_node_fails() {
+        let mut graph = Graph::new();
+        let result = graph.store_property(NodeId(999), Attribute::new("name"), Value::new("Test"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn get_properties_nonexistent_node_fails() {
+        let graph = Graph::new();
+        let result = graph.get_properties(NodeId(999));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn get_properties_empty_returns_empty_vec() {
+        let mut graph = Graph::new();
+        let node = graph.insert_node(EntityId(1)).expect("insert");
+
+        let props = graph.get_properties(node).expect("get");
+        assert!(props.is_empty());
     }
 }

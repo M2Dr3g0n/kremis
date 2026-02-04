@@ -62,6 +62,9 @@ impl Ingestor {
     ///
     /// Works with both in-memory Graph and persistent RedbGraph.
     /// Returns the NodeId of the entity node.
+    ///
+    /// The signal's attribute and value are stored as properties of the node,
+    /// preserving the full signal data for later retrieval.
     pub fn ingest_signal<G: GraphStore>(
         graph: &mut G,
         signal: &Signal,
@@ -70,6 +73,9 @@ impl Ingestor {
 
         // Get or create node for the entity
         let node_id = graph.insert_node(signal.entity)?;
+
+        // Store the attribute and value as properties
+        graph.store_property(node_id, signal.attribute.clone(), signal.value.clone())?;
 
         Ok(node_id)
     }
@@ -204,5 +210,46 @@ mod tests {
         Ingestor::ingest_signal(&mut graph, &signal).expect("ingest");
 
         assert!(Ingestor::is_duplicate(&graph, &signal));
+    }
+
+    #[test]
+    fn ingest_signal_stores_properties() {
+        use crate::graph::GraphStore;
+
+        let mut graph = Graph::new();
+        let signal = make_signal(1, "name", "Alice");
+
+        let node_id = Ingestor::ingest_signal(&mut graph, &signal).expect("ingest");
+
+        // Verify the property was stored
+        let props = graph.get_properties(node_id).expect("get properties");
+        assert_eq!(props.len(), 1);
+        assert_eq!(props[0].0.as_str(), "name");
+        assert_eq!(props[0].1.as_str(), "Alice");
+    }
+
+    #[test]
+    fn ingest_sequence_stores_all_properties() {
+        use crate::graph::GraphStore;
+
+        let mut graph = Graph::new();
+        let signals = vec![
+            make_signal(1, "name", "Alice"),
+            make_signal(2, "name", "Bob"),
+        ];
+
+        let nodes = Ingestor::ingest_sequence(&mut graph, &signals).expect("ingest");
+
+        // Verify properties for first node
+        let props1 = graph.get_properties(nodes[0]).expect("get properties");
+        assert_eq!(props1.len(), 1);
+        assert_eq!(props1[0].0.as_str(), "name");
+        assert_eq!(props1[0].1.as_str(), "Alice");
+
+        // Verify properties for second node
+        let props2 = graph.get_properties(nodes[1]).expect("get properties");
+        assert_eq!(props2.len(), 1);
+        assert_eq!(props2[0].0.as_str(), "name");
+        assert_eq!(props2[0].1.as_str(), "Bob");
     }
 }
