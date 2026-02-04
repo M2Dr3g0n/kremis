@@ -263,66 +263,204 @@ async fn test_query_traverse() {
     let lookup_response = server.post("/query").json(&lookup).await;
     let lookup_result: QueryResponse = lookup_response.json();
 
-    if lookup_result.found && !lookup_result.path.is_empty() {
-        let node_id = lookup_result.path[0];
+    assert!(lookup_result.found, "Entity 1 should exist in populated graph");
+    assert!(!lookup_result.path.is_empty(), "Lookup should return node ID");
 
-        let request = QueryRequest::Traverse { node_id, depth: 2 };
-        let response = server.post("/query").json(&request).await;
+    let node_id = lookup_result.path[0];
 
-        response.assert_status_ok();
-        let result: QueryResponse = response.json();
-        assert!(result.success);
-    }
+    let request = QueryRequest::Traverse { node_id, depth: 2 };
+    let response = server.post("/query").json(&request).await;
+
+    response.assert_status_ok();
+    let result: QueryResponse = response.json();
+    assert!(result.success);
+    assert!(result.found, "Traverse from existing node should find results");
+    assert!(
+        !result.path.is_empty(),
+        "Traverse should return at least the starting node"
+    );
+    // Verify the starting node is in the path
+    assert!(
+        result.path.contains(&node_id),
+        "Traverse result should include the starting node"
+    );
 }
 
 #[tokio::test]
 async fn test_query_traverse_filtered() {
     let server = create_populated_test_server();
 
+    // First verify node 1 exists
+    let lookup = QueryRequest::Lookup { entity_id: 1 };
+    let lookup_response = server.post("/query").json(&lookup).await;
+    let lookup_result: QueryResponse = lookup_response.json();
+    assert!(lookup_result.found, "Entity 1 should exist");
+    let node_id = lookup_result.path[0];
+
+    // Test with min_weight=0 to ensure we get results
     let request = QueryRequest::TraverseFiltered {
-        node_id: 1,
+        node_id,
         depth: 2,
-        min_weight: 10,
+        min_weight: 0,
     };
     let response = server.post("/query").json(&request).await;
 
     response.assert_status_ok();
     let result: QueryResponse = response.json();
     assert!(result.success);
+    assert!(
+        result.found,
+        "Traverse filtered with min_weight=0 should find results"
+    );
+    assert!(
+        !result.path.is_empty(),
+        "Traverse filtered should return nodes"
+    );
+
+    // Test with very high min_weight - may return fewer or no edges
+    let high_filter = QueryRequest::TraverseFiltered {
+        node_id,
+        depth: 2,
+        min_weight: 1000,
+    };
+    let high_response = server.post("/query").json(&high_filter).await;
+    let high_result: QueryResponse = high_response.json();
+    assert!(high_result.success, "High filter query should succeed");
+    // With high filter, edges should be filtered out
+    assert!(
+        high_result.edges.is_empty() || high_result.edges.iter().all(|e| e.weight >= 1000),
+        "All edges should meet min_weight threshold"
+    );
 }
 
 #[tokio::test]
 async fn test_query_strongest_path() {
     let server = create_populated_test_server();
 
-    let request = QueryRequest::StrongestPath { start: 1, end: 2 };
-    let response = server.post("/query").json(&request).await;
+    // First verify both nodes exist
+    let lookup1 = QueryRequest::Lookup { entity_id: 1 };
+    let lookup2 = QueryRequest::Lookup { entity_id: 2 };
+    let resp1 = server.post("/query").json(&lookup1).await;
+    let resp2 = server.post("/query").json(&lookup2).await;
+    let result1: QueryResponse = resp1.json();
+    let result2: QueryResponse = resp2.json();
+    assert!(result1.found, "Entity 1 should exist");
+    assert!(result2.found, "Entity 2 should exist");
 
-    response.assert_status_ok();
-    let result: QueryResponse = response.json();
-    assert!(result.success);
-}
+    let node1 = result1.path[0];
+    let node2 = result2.path[0];
 
-#[tokio::test]
-async fn test_query_intersect() {
-    let server = create_populated_test_server();
-
-    let request = QueryRequest::Intersect {
-        nodes: vec![1, 2, 3],
+    let request = QueryRequest::StrongestPath {
+        start: node1,
+        end: node2,
     };
     let response = server.post("/query").json(&request).await;
 
     response.assert_status_ok();
     let result: QueryResponse = response.json();
     assert!(result.success);
+
+    // If path exists, it should start with start and end with end
+    if result.found && !result.path.is_empty() {
+        assert_eq!(
+            result.path.first(),
+            Some(&node1),
+            "Path should start with start node"
+        );
+        assert_eq!(
+            result.path.last(),
+            Some(&node2),
+            "Path should end with end node"
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_query_intersect() {
+    let server = create_populated_test_server();
+
+    // Get actual node IDs from lookups
+    let lookup1 = QueryRequest::Lookup { entity_id: 1 };
+    let lookup2 = QueryRequest::Lookup { entity_id: 2 };
+    let resp1 = server.post("/query").json(&lookup1).await;
+    let resp2 = server.post("/query").json(&lookup2).await;
+    let result1: QueryResponse = resp1.json();
+    let result2: QueryResponse = resp2.json();
+    assert!(result1.found && result2.found, "Entities should exist");
+
+    let node1 = result1.path[0];
+    let node2 = result2.path[0];
+
+    let request = QueryRequest::Intersect {
+        nodes: vec![node1, node2],
+    };
+    let response = server.post("/query").json(&request).await;
+
+    response.assert_status_ok();
+    let result: QueryResponse = response.json();
+    assert!(result.success);
+    // Intersect returns common ancestors/connections - verify response structure
+    assert!(
+        result.error.is_none(),
+        "Intersect should not return an error"
+    );
+}
+
+#[tokio::test]
+async fn test_query_intersect_nonexistent_nodes() {
+    let server = create_test_server();
+
+    // Query with nodes that don't exist
+    let request = QueryRequest::Intersect {
+        nodes: vec![9999, 8888, 7777],
+    };
+    let response = server.post("/query").json(&request).await;
+
+    response.assert_status_ok();
+    let result: QueryResponse = response.json();
+    assert!(result.success);
+    assert!(!result.found, "Intersect of nonexistent nodes should not find results");
+    assert!(result.path.is_empty(), "Path should be empty for nonexistent nodes");
 }
 
 #[tokio::test]
 async fn test_query_related() {
     let server = create_populated_test_server();
 
+    // First get actual node ID
+    let lookup = QueryRequest::Lookup { entity_id: 1 };
+    let lookup_response = server.post("/query").json(&lookup).await;
+    let lookup_result: QueryResponse = lookup_response.json();
+    assert!(lookup_result.found, "Entity 1 should exist");
+    let node_id = lookup_result.path[0];
+
+    let request = QueryRequest::Related { node_id, depth: 2 };
+    let response = server.post("/query").json(&request).await;
+
+    response.assert_status_ok();
+    let result: QueryResponse = response.json();
+    assert!(result.success);
+    assert!(
+        result.found,
+        "Related query from existing node should find results"
+    );
+    assert!(
+        !result.path.is_empty(),
+        "Related query should return nodes"
+    );
+    // The query node should be in the result
+    assert!(
+        result.path.contains(&node_id),
+        "Related result should include the query node"
+    );
+}
+
+#[tokio::test]
+async fn test_query_related_nonexistent_node() {
+    let server = create_test_server();
+
     let request = QueryRequest::Related {
-        node_id: 1,
+        node_id: 99999,
         depth: 2,
     };
     let response = server.post("/query").json(&request).await;
@@ -330,6 +468,8 @@ async fn test_query_related() {
     response.assert_status_ok();
     let result: QueryResponse = response.json();
     assert!(result.success);
+    assert!(!result.found, "Related query for nonexistent node should not find results");
+    assert!(result.path.is_empty(), "Path should be empty for nonexistent node");
 }
 
 // =============================================================================
