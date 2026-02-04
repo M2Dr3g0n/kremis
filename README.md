@@ -197,7 +197,7 @@ cargo fmt --all -- --check
 
 ## Acknowledgments
 
-This project was developed with the assistance of AI (Claude by Anthropic).
+This project was developed with AI assistance.
 
 ---
 
