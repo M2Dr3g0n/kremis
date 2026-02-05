@@ -148,8 +148,11 @@ kremis export -o <FILE> [-t <FORMAT>]
 
 Import graph from canonical format.
 
+> **Note:** Import is currently supported only with the `file` backend (`-B file`).
+> Import to `redb` backend is not yet implemented.
+
 ```bash
-kremis import -i <FILE>
+kremis import -i <FILE> -B file
 ```
 
 | Option | Short | Description |
