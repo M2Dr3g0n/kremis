@@ -280,6 +280,11 @@ impl GraphStore for RedbGraph {
         to: NodeId,
         weight: EdgeWeight,
     ) -> Result<(), KremisError> {
+        // Check that both nodes exist before inserting (consistent with Graph behavior)
+        if !self.contains_node(from)? || !self.contains_node(to)? {
+            return Ok(());
+        }
+
         let write_txn = self
             .db
             .begin_write()
@@ -1439,6 +1444,34 @@ mod tests {
 
         let props = graph.get_properties(node).expect("get");
         assert!(props.is_empty());
+    }
+
+    #[test]
+    fn insert_edge_ignores_dangling_nodes() {
+        let temp = tempdir().expect("temp dir");
+        let db_path = temp.path().join("test.redb");
+        let mut graph = RedbGraph::open(&db_path).expect("open db");
+
+        let node1 = graph.insert_node(EntityId(1)).expect("insert node");
+        let dangling = NodeId(999);
+
+        // Edge from existing to non-existing: silently ignored
+        graph
+            .insert_edge(node1, dangling, EdgeWeight::new(5))
+            .expect("insert edge");
+        assert_eq!(graph.edge_count().expect("count"), 0);
+
+        // Edge from non-existing to existing: silently ignored
+        graph
+            .insert_edge(dangling, node1, EdgeWeight::new(5))
+            .expect("insert edge");
+        assert_eq!(graph.edge_count().expect("count"), 0);
+
+        // Edge between two non-existing nodes: silently ignored
+        graph
+            .insert_edge(NodeId(888), dangling, EdgeWeight::new(5))
+            .expect("insert edge");
+        assert_eq!(graph.edge_count().expect("count"), 0);
     }
 
     #[test]

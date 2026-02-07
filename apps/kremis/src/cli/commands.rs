@@ -473,6 +473,30 @@ pub fn cmd_query(
             );
         }
 
+        "related" => {
+            let start_id = start.ok_or(KremisError::InvalidSignal)?;
+
+            match session.compose(NodeId(start_id), depth) {
+                Some(a) => {
+                    println!("Related to node {} (depth {}):", start_id, depth);
+                    println!(
+                        "  Path: {:?}",
+                        a.path.iter().map(|n| n.0).collect::<Vec<_>>()
+                    );
+                    if let Some(ref sg) = a.subgraph {
+                        println!("  Edges: {}", sg.len());
+                        for (from, to, weight) in sg.iter().take(10) {
+                            println!("    {} -> {} (weight: {})", from.0, to.0, weight.value());
+                        }
+                        if sg.len() > 10 {
+                            println!("    ... and {} more", sg.len() - 10);
+                        }
+                    }
+                }
+                None => println!("Node {} not found", start_id),
+            }
+        }
+
         "properties" => {
             let node_id = start.ok_or(KremisError::InvalidSignal)?;
 
@@ -496,7 +520,7 @@ pub fn cmd_query(
 
         _ => {
             return Err(KremisError::SerializationError(format!(
-                "Unknown query type: {}. Use: lookup, traverse, path, intersect, properties",
+                "Unknown query type: {}. Use: lookup, traverse, path, intersect, related, properties",
                 query_type
             )));
         }

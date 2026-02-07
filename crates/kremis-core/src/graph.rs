@@ -883,6 +883,25 @@ mod tests {
     }
 
     #[test]
+    fn insert_edge_ignores_dangling_nodes() {
+        let mut graph = Graph::new();
+        let node1 = graph.insert_node(EntityId(1)).expect("insert");
+        let dangling = NodeId(999);
+
+        // Edge from existing to non-existing: silently ignored
+        graph
+            .insert_edge(node1, dangling, EdgeWeight::new(5))
+            .expect("insert edge");
+        assert_eq!(graph.edge_count().expect("count"), 0);
+
+        // Edge from non-existing to existing: silently ignored
+        graph
+            .insert_edge(dangling, node1, EdgeWeight::new(5))
+            .expect("insert edge");
+        assert_eq!(graph.edge_count().expect("count"), 0);
+    }
+
+    #[test]
     fn serializable_graph_roundtrip_with_properties() {
         let mut graph = Graph::new();
         let a = graph.insert_node(EntityId(1)).expect("insert");
