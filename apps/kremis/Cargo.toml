@@ -59,27 +59,8 @@ axum-test = "18"
 bytes = "1"
 
 # =============================================================================
-# CLIPPY LINTS
+# CLIPPY LINTS — inherited from workspace
 # =============================================================================
 
-[lints.clippy]
-# Inherit critical denials (per AGENTS.md Section 5.8)
-float_arithmetic = "deny"
-unwrap_used = "deny"
-panic = "deny"
-# Allow more flexibility in app layer
-missing_errors_doc = "allow"
-missing_panics_doc = "allow"
-module_name_repetitions = "allow"
-must_use_candidate = "allow"
-too_many_lines = "allow"
-too_many_arguments = "allow"
-# Additional allows for app ergonomics
-doc_markdown = "allow"
-similar_names = "allow"
-cast_lossless = "allow"
-cast_possible_truncation = "allow"
-if_not_else = "allow"
-trivially_copy_pass_by_ref = "allow"
-uninlined_format_args = "allow"
-needless_pass_by_value = "allow"
+[lints]
+workspace = true
