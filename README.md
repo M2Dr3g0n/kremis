@@ -4,8 +4,8 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.85%2B-orange.svg)](https://www.rust-lang.org/)
 ![Status](https://img.shields.io/badge/status-experimental-orange)
-> 🚧 **Work in Progress**  
-> Features incomplete. Breaking changes expected.
+
+> **Work in Progress** — Features incomplete. Breaking changes expected.
 
 **Kremis** is a minimal, deterministic, graph-based cognitive substrate implemented in Rust.
 
@@ -17,36 +17,19 @@ It functions solely as a mechanism to **record**, **associate**, and **retrieve*
 
 ## Why Kremis
 
-Current AI systems suffer from three fundamental problems:
-
 | Problem | How Kremis addresses it |
 |---------|------------------------|
-| **Hallucination** | Output is always honest: Facts, Inferences, or explicit "I don't know". No silent gap-filling. |
-| **Opacity** | Fully inspectable state. No hidden layers, no black box. Every result traces back to a graph path. |
-| **Lack of grounding** | Zero pre-loaded knowledge. All structure emerges from real signals, not assumptions. |
-
----
-
-## Features
-
-| Feature | Description |
-|---------|-------------|
-| **Deterministic** | Same input, same output. No randomness, no floats in Core |
-| **Grounded** | Zero pre-loaded knowledge. All structure emerges from signals |
-| **Transparent** | Fully inspectable state machine. No hidden state |
-| **Crash-Safe** | ACID transactions via `redb` embedded database |
-| **Honest Output** | Facts, Inferences, or "I don't know" - never hallucination |
-
----
-
-## Requirements
-
-- Rust 1.85+ (stable, edition 2024)
-- Cargo
+| **Hallucination** | Output is always honest: Facts, Inferences, or explicit "I don't know". No silent gap-filling |
+| **Opacity** | Fully inspectable state. No hidden layers, no black box. Every result traces back to a graph path |
+| **Lack of grounding** | Zero pre-loaded knowledge. All structure emerges from real signals, not assumptions |
+| **Non-determinism** | Same input, same output. No randomness, no floating-point arithmetic in core |
+| **Data loss** | ACID transactions via `redb` embedded database. Crash-safe by design |
 
 ---
 
 ## Quick Start
+
+Requires **Rust 1.85+** (stable, edition 2024) and Cargo.
 
 ```bash
 git clone https://github.com/M2Dr3g0n/kremis.git
@@ -54,8 +37,6 @@ cd kremis
 cargo build --release
 cargo test --workspace
 ```
-
-### Initialize and Run
 
 ```bash
 # Initialize database
@@ -70,67 +51,11 @@ curl http://localhost:8080/health
 
 ---
 
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    KREMIS BINARY (apps/kremis)              │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │                    HTTP SERVER                       │    │
-│  │   POST /signal   POST /query   GET /status          │    │
-│  └─────────────────────────────────────────────────────┘    │
-│                            │                                 │
-│                            ▼                                 │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │              KREMIS-CORE (THE LOGIC)                 │    │
-│  │  INGESTOR ───▶ GRAPH ENGINE ───▶ COMPOSITOR         │    │
-│  │    (RX)          (STORE)            (TX)            │    │
-│  └─────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────┘
-```
-
-| Component | Description |
-|-----------|-------------|
-| **kremis-core** | THE LOGIC - Deterministic graph engine (pure Rust, no async) |
-| **apps/kremis** | THE BINARY - HTTP server + CLI (tokio, axum, clap) |
-
----
-
-## Project Structure
-
-```
-kremis/
-├── Cargo.toml              # Workspace Root
-├── crates/
-│   └── kremis-core/         # THE LOGIC - Graph Engine
-│       └── src/
-│           ├── types/       # Core types (EntityId, Signal, etc.)
-│           ├── graph.rs     # BTreeMap-based graph
-│           ├── formats/     # Persistence formats
-│           ├── system/      # Stage assessment (S0-S3)
-│           └── storage/     # redb backend
-├── apps/
-│   └── kremis/              # THE BINARY
-│       └── src/
-│           ├── main.rs
-│           ├── api/         # HTTP handlers
-│           └── cli/         # CLI commands
-└── docs/                    # Documentation
-```
-
----
-
 ## Usage
 
 ### CLI
 
 ```bash
-# Initialize database
-cargo run -p kremis -- init
-
-# Start HTTP server
-cargo run -p kremis -- server --port 8080
-
 # Show graph status
 cargo run -p kremis -- status
 
@@ -178,6 +103,17 @@ let signal = Signal::new(
 
 let node_id = session.ingest(&signal)?;
 ```
+
+---
+
+## Architecture
+
+| Component | Description |
+|-----------|-------------|
+| **kremis-core** | Deterministic graph engine (pure Rust, no async) |
+| **apps/kremis** | HTTP server + CLI (tokio, axum, clap) |
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for internal details (data flow, storage backends, algorithms, export formats).
 
 ---
 
