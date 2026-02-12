@@ -370,7 +370,9 @@ fn bench_increment_edge(c: &mut Criterion) {
         let base = create_linear_graph(*size);
         let edge_pairs: Vec<_> = (0..*size - 1)
             .map(|i| {
-                let from = base.get_node_by_entity(EntityId(i as u64)).expect("from node");
+                let from = base
+                    .get_node_by_entity(EntityId(i as u64))
+                    .expect("from node");
                 let to = base
                     .get_node_by_entity(EntityId((i + 1) as u64))
                     .expect("to node");
