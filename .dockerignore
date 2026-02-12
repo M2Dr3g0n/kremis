@@ -1,0 +1,15 @@
+target/
+*.db
+*.bin
+.claude/
+.agent/
+.agents/
+_archive/
+dev-docs/
+social/
+video/
+.git/
+.env
+.env.*
+.DS_Store
+Thumbs.db

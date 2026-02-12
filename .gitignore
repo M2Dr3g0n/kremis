@@ -11,6 +11,7 @@
 tmpclaude*
 .claude/
 .agent/
+.agents/
 
 # Archived code (kept locally, not published)
 _archive/
