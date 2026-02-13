@@ -49,6 +49,25 @@ cargo run -p kremis -- server
 curl http://localhost:8080/health
 ```
 
+### Docker
+
+```bash
+docker build -t kremis .
+docker run -d -p 8080:8080 -v kremis-data:/data kremis
+```
+
+Pass configuration via environment variables:
+
+```bash
+docker run -d -p 8080:8080 \
+  -v kremis-data:/data \
+  -e KREMIS_API_KEY=your-secret \
+  -e KREMIS_CORS_ORIGINS="https://example.com" \
+  kremis
+```
+
+Multi-stage build (~136 MB image). Data persists in `/data` volume. Built-in healthcheck on `/health`.
+
 ---
 
 ## Usage
