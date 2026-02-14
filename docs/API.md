@@ -23,6 +23,7 @@ REST API for Kremis - a minimal, deterministic, graph-based cognitive substrate.
    - [POST /export](#post-export)
 6. [Error Codes](#error-codes)
 7. [Examples](#examples)
+8. [MCP Server](#mcp-server)
 
 ---
 
