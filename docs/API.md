@@ -2,7 +2,7 @@
 
 REST API for Kremis - a minimal, deterministic, graph-based cognitive substrate.
 
-**Version:** 0.3.0
+**Version:** 0.3.1
 **License:** Apache 2.0
 **Base URL:** `http://localhost:8080`
 
@@ -37,6 +37,8 @@ The Kremis HTTP API provides programmatic access to a graph-based cognitive subs
 - **Export data** - Export the entire graph in binary format
 
 All endpoints return JSON responses (except error responses which may return plain text).
+
+> **Note:** The HTTP server holds an exclusive lock on the redb database. CLI commands (`ingest`, `status`, `export`) cannot run while the server is active. Stop the server first, or use the HTTP API for all operations.
 
 ---
 
@@ -128,7 +130,7 @@ Health check endpoint. Always accessible without authentication.
 ```json
 {
   "status": "ok",
-  "version": "0.3.0"
+  "version": "0.3.1"
 }
 ```
 
@@ -633,7 +635,7 @@ curl -X POST http://localhost:8080/export \
 ```bash
 # 1. Check server health
 curl http://localhost:8080/health
-# {"status":"ok","version":"0.3.0"}
+# {"status":"ok","version":"0.3.1"}
 
 # 2. Ingest some signals
 curl -X POST http://localhost:8080/signal \

@@ -19,7 +19,7 @@ It functions solely as a mechanism to **record**, **associate**, and **retrieve*
 
 | Problem | How Kremis addresses it |
 |---------|------------------------|
-| **Hallucination** | Output is always honest: Facts, Inferences, or explicit "I don't know". No silent gap-filling |
+| **Hallucination** | No fabricated data. Every result traces back to real ingested signals. Explicit "not found" for missing data |
 | **Opacity** | Fully inspectable state. No hidden layers, no black box. Every result traces back to a graph path |
 | **Lack of grounding** | Zero pre-loaded knowledge. All structure emerges from real signals, not assumptions |
 | **Non-determinism** | Same input, same output. No randomness, no floating-point arithmetic in core |
@@ -42,39 +42,21 @@ cargo test --workspace
 # Initialize database
 cargo run -p kremis -- init
 
-# Start HTTP server
+# Ingest sample data (9 signals: 3 entities with properties + relationships)
+cargo run -p kremis -- ingest -f examples/sample_signals.json -t json
+
+# Start HTTP server (in a separate terminal, or background with &)
 cargo run -p kremis -- server
 
-# Check status
+# Check health (in another terminal)
 curl http://localhost:8080/health
 ```
 
+> **Note:** CLI commands and the HTTP server cannot run simultaneously (redb holds an exclusive lock). Stop the server before using CLI commands like `ingest`, `status`, or `export`.
+
 ### Try It
 
-Ingest sample data from file (without the server running):
-
-```bash
-cargo run -p kremis -- ingest -f examples/sample_signals.json -t json
-```
-
-Or ingest via HTTP (with the server running, in a separate terminal):
-
-```bash
-curl -X POST http://localhost:8080/signal \
-     -H "Content-Type: application/json" \
-     -d '{"entity_id": 1, "attribute": "name", "value": "Alice"}'
-# {"success":true,"node_id":0,"error":null}
-
-curl -X POST http://localhost:8080/signal \
-     -H "Content-Type: application/json" \
-     -d '{"entity_id": 2, "attribute": "name", "value": "Bob"}'
-
-curl -X POST http://localhost:8080/signal \
-     -H "Content-Type: application/json" \
-     -d '{"entity_id": 1, "attribute": "knows", "value": "Bob"}'
-```
-
-Query the graph:
+With the server running, query the graph:
 
 ```bash
 # Look up entity 1 (Alice)
@@ -87,13 +69,27 @@ curl -X POST http://localhost:8080/query \
      -H "Content-Type: application/json" \
      -d '{"type": "traverse", "node_id": 0, "depth": 3}'
 
-# Get properties of node 0
+# Get properties of node 0 (name, role, etc.)
 curl -X POST http://localhost:8080/query \
      -H "Content-Type: application/json" \
      -d '{"type": "properties", "node_id": 0}'
 
+# Find common connections between nodes 0 and 1
+curl -X POST http://localhost:8080/query \
+     -H "Content-Type: application/json" \
+     -d '{"type": "intersect", "nodes": [0, 1]}'
+
 # Check graph status
 curl http://localhost:8080/status
+```
+
+You can also ingest signals via HTTP:
+
+```bash
+curl -X POST http://localhost:8080/signal \
+     -H "Content-Type: application/json" \
+     -d '{"entity_id": 1, "attribute": "name", "value": "Alice"}'
+# {"success":true,"node_id":0,"error":null}
 ```
 
 The `examples/` directory contains sample data in both JSON and text formats.

@@ -627,10 +627,15 @@ pub fn cmd_import(
 
 /// Initialize new database.
 pub fn cmd_init(db_path: &PathBuf, backend: &str, force: bool) -> Result<(), KremisError> {
-    if db_path.exists() && !force {
-        return Err(KremisError::SerializationError(
-            "Database already exists. Use --force to overwrite.".to_string(),
-        ));
+    if db_path.exists() {
+        if !force {
+            return Err(KremisError::SerializationError(
+                "Database already exists. Use --force to overwrite.".to_string(),
+            ));
+        }
+        // Delete existing file so we start fresh
+        std::fs::remove_file(db_path)
+            .map_err(|e| KremisError::IoError(format!("Remove existing db: {e}")))?;
     }
 
     match backend {
