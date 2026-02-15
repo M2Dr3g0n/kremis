@@ -49,6 +49,55 @@ cargo run -p kremis -- server
 curl http://localhost:8080/health
 ```
 
+### Try It
+
+Ingest sample data from file (without the server running):
+
+```bash
+cargo run -p kremis -- ingest -f examples/sample_signals.json -t json
+```
+
+Or ingest via HTTP (with the server running, in a separate terminal):
+
+```bash
+curl -X POST http://localhost:8080/signal \
+     -H "Content-Type: application/json" \
+     -d '{"entity_id": 1, "attribute": "name", "value": "Alice"}'
+# {"success":true,"node_id":0,"error":null}
+
+curl -X POST http://localhost:8080/signal \
+     -H "Content-Type: application/json" \
+     -d '{"entity_id": 2, "attribute": "name", "value": "Bob"}'
+
+curl -X POST http://localhost:8080/signal \
+     -H "Content-Type: application/json" \
+     -d '{"entity_id": 1, "attribute": "knows", "value": "Bob"}'
+```
+
+Query the graph:
+
+```bash
+# Look up entity 1 (Alice)
+curl -X POST http://localhost:8080/query \
+     -H "Content-Type: application/json" \
+     -d '{"type": "lookup", "entity_id": 1}'
+
+# Traverse from node 0, depth 3
+curl -X POST http://localhost:8080/query \
+     -H "Content-Type: application/json" \
+     -d '{"type": "traverse", "node_id": 0, "depth": 3}'
+
+# Get properties of node 0
+curl -X POST http://localhost:8080/query \
+     -H "Content-Type: application/json" \
+     -d '{"type": "properties", "node_id": 0}'
+
+# Check graph status
+curl http://localhost:8080/status
+```
+
+The `examples/` directory contains sample data in both JSON and text formats.
+
 ### Docker
 
 ```bash

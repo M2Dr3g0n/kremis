@@ -1,0 +1,11 @@
+[
+  {"entity_id": 1, "attribute": "name", "value": "Alice"},
+  {"entity_id": 1, "attribute": "role", "value": "engineer"},
+  {"entity_id": 2, "attribute": "name", "value": "Bob"},
+  {"entity_id": 2, "attribute": "role", "value": "designer"},
+  {"entity_id": 3, "attribute": "name", "value": "Kremis"},
+  {"entity_id": 3, "attribute": "type", "value": "project"},
+  {"entity_id": 1, "attribute": "works_on", "value": "Kremis"},
+  {"entity_id": 2, "attribute": "works_on", "value": "Kremis"},
+  {"entity_id": 1, "attribute": "knows", "value": "Bob"}
+]

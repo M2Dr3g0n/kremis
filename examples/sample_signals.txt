@@ -1,0 +1,9 @@
+1:name:Alice
+1:role:engineer
+2:name:Bob
+2:role:designer
+3:name:Kremis
+3:type:project
+1:works_on:Kremis
+2:works_on:Kremis
+1:knows:Bob
