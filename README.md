@@ -231,6 +231,8 @@ cargo fmt --all -- --check
 
 [Apache License 2.0](LICENSE)
 
+The brand assets in [`docs/logo/`](docs/logo/) (logo, icon, favicon) are proprietary and not covered by the Apache 2.0 license. See [`docs/logo/LICENSE`](docs/logo/LICENSE).
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. The architecture is still evolving — open an [issue](https://github.com/TyKolt/kremis/issues) before submitting a PR.
