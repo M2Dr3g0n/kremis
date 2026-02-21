@@ -197,6 +197,9 @@ pub struct QueryResponse {
     #[serde(default = "default_grounding")]
     pub grounding: String,
     pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub diagnostic: Option<String>,
 }
 
 impl QueryResponse {
@@ -209,6 +212,7 @@ impl QueryResponse {
             properties: vec![],
             grounding: "unknown".to_string(),
             error: None,
+            diagnostic: None,
         }
     }
 
@@ -221,6 +225,7 @@ impl QueryResponse {
             properties: vec![],
             grounding: "unknown".to_string(),
             error: None,
+            diagnostic: None,
         }
     }
 
@@ -247,6 +252,7 @@ impl QueryResponse {
             properties: vec![],
             grounding: "unknown".to_string(),
             error: None,
+            diagnostic: None,
         }
     }
 
@@ -259,6 +265,7 @@ impl QueryResponse {
             grounding: "unknown".to_string(),
             properties,
             error: None,
+            diagnostic: None,
         }
     }
 
@@ -271,7 +278,13 @@ impl QueryResponse {
             properties: vec![],
             grounding: "unknown".to_string(),
             error: Some(msg.into()),
+            diagnostic: None,
         }
+    }
+
+    pub fn with_diagnostic(mut self, reason: &'static str) -> Self {
+        self.diagnostic = Some(reason.to_string());
+        self
     }
 }
 

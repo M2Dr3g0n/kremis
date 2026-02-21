@@ -23,12 +23,12 @@ fn test_health_response_default() {
 fn test_health_response_serialization() {
     let health = HealthResponse {
         status: "ok".to_string(),
-        version: "0.4.0".to_string(),
+        version: "0.5.0".to_string(),
     };
 
     let json = serde_json::to_string(&health).unwrap();
     assert!(json.contains("\"status\":\"ok\""));
-    assert!(json.contains("\"version\":\"0.4.0\""));
+    assert!(json.contains("\"version\":\"0.5.0\""));
 }
 
 #[test]
@@ -486,4 +486,43 @@ fn test_query_request_all_variants_roundtrip() {
         let parsed_json = serde_json::to_value(&parsed).unwrap();
         assert_eq!(original_json, parsed_json);
     }
+}
+
+// =============================================================================
+// DIAGNOSTIC FIELD TESTS
+// =============================================================================
+
+#[test]
+fn test_query_response_diagnostic_is_none_by_default() {
+    let response = QueryResponse::not_found();
+    assert!(response.diagnostic.is_none());
+
+    let response2 = QueryResponse::error("oops");
+    assert!(response2.diagnostic.is_none());
+}
+
+#[test]
+fn test_query_response_diagnostic_serialized_when_set() {
+    let response = QueryResponse::not_found().with_diagnostic("node_not_found");
+    assert_eq!(response.diagnostic, Some("node_not_found".to_string()));
+
+    let json = serde_json::to_string(&response).unwrap();
+    assert!(json.contains("\"diagnostic\":\"node_not_found\""));
+}
+
+#[test]
+fn test_query_response_no_diagnostic_not_in_json() {
+    let response = QueryResponse::not_found();
+    let json = serde_json::to_string(&response).unwrap();
+    // diagnostic field must be absent from JSON when None
+    assert!(!json.contains("diagnostic"));
+}
+
+#[test]
+fn test_query_response_diagnostic_deserializes_old_format() {
+    // Old JSON without diagnostic field should deserialize with diagnostic = None
+    let json =
+        r#"{"success":true,"found":false,"path":[],"edges":[],"grounding":"unknown","error":null}"#;
+    let response: QueryResponse = serde_json::from_str(json).unwrap();
+    assert!(response.diagnostic.is_none());
 }

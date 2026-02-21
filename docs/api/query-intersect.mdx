@@ -28,7 +28,9 @@ Find nodes that are neighbors of **all** input nodes (set intersection of neighb
 
 ## Response
 
-```json 200 OK
+<CodeGroup>
+
+```json 200 OK (found)
 {
   "success": true,
   "found": true,
@@ -39,7 +41,21 @@ Find nodes that are neighbors of **all** input nodes (set intersection of neighb
 }
 ```
 
-The `path` array contains the node IDs that are connected to all input nodes.
+```json Not Found
+{
+  "success": true,
+  "found": false,
+  "path": [],
+  "edges": [],
+  "grounding": "unknown",
+  "error": null,
+  "diagnostic": "no_common_neighbors"
+}
+```
+
+</CodeGroup>
+
+The `path` array contains the node IDs that are connected to all input nodes. When `found` is `false`, `diagnostic` is `no_common_neighbors`.
 
 ## Example
 

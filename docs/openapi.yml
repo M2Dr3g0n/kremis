@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: Kremis API
-  version: 0.4.0
+  version: 0.5.0
   description: |
     Kremis is a deterministic, graph-based memory engine for AI agents.
 
@@ -65,7 +65,7 @@ paths:
                 $ref: "#/components/schemas/HealthResponse"
               example:
                 status: ok
-                version: "0.4.0"
+                version: "0.5.0"
         "429":
           $ref: "#/components/responses/TooManyRequests"
 
@@ -290,6 +290,7 @@ paths:
                     edges: []
                     grounding: unknown
                     error: null
+                    diagnostic: "node_not_found"
                 properties:
                   summary: Properties query result
                   value:
@@ -406,7 +407,7 @@ components:
         version:
           type: string
           description: Server version (semver).
-          example: "0.4.0"
+          example: "0.5.0"
 
     # -------------------------------------------------------------------------
     # Graph state
@@ -756,6 +757,14 @@ components:
           type: ["string", "null"]
           description: Error message, present only when `success` is `false`.
           example: null
+        diagnostic:
+          type: ["string", "null"]
+          description: >
+            Reason why the query returned no results. Only present when `found`
+            is `false`. Possible values: `entity_not_found`, `node_not_found`,
+            `start_not_found`, `end_not_found`, `no_path`,
+            `no_common_neighbors`.
+          example: "node_not_found"
 
     EdgeJson:
       type: object

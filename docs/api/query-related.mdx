@@ -30,7 +30,9 @@ Retrieve the subgraph of nodes and edges reachable from a starting node up to a 
 
 ## Response
 
-```json 200 OK
+<CodeGroup>
+
+```json 200 OK (found)
 {
   "success": true,
   "found": true,
@@ -43,6 +45,22 @@ Retrieve the subgraph of nodes and edges reachable from a starting node up to a 
   "error": null
 }
 ```
+
+```json Not Found
+{
+  "success": true,
+  "found": false,
+  "path": [],
+  "edges": [],
+  "grounding": "unknown",
+  "error": null,
+  "diagnostic": "node_not_found"
+}
+```
+
+</CodeGroup>
+
+When `found` is `false`, `diagnostic` explains why (e.g. `node_not_found`).
 
 ## Example
 

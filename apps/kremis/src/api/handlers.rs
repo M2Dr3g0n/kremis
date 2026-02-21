@@ -152,7 +152,7 @@ fn execute_query_inner(
     match request {
         QueryRequest::Lookup { entity_id } => match session.lookup_entity(EntityId(*entity_id)) {
             Some(node_id) => Ok(QueryResponse::with_path(vec![node_id])),
-            None => Ok(QueryResponse::not_found()),
+            None => Ok(QueryResponse::not_found().with_diagnostic("entity_not_found")),
         },
 
         QueryRequest::Traverse { node_id, depth } => {
@@ -160,7 +160,7 @@ fn execute_query_inner(
             validate_depth(*depth)?;
             match session.traverse(NodeId(*node_id), *depth) {
                 Some(artifact) => Ok(QueryResponse::with_artifact(&artifact)),
-                None => Ok(QueryResponse::not_found()),
+                None => Ok(QueryResponse::not_found().with_diagnostic("node_not_found")),
             }
         }
 
@@ -174,14 +174,23 @@ fn execute_query_inner(
             match session.traverse_filtered(NodeId(*node_id), *depth, EdgeWeight::new(*min_weight))
             {
                 Some(artifact) => Ok(QueryResponse::with_artifact(&artifact)),
-                None => Ok(QueryResponse::not_found()),
+                None => Ok(QueryResponse::not_found().with_diagnostic("node_not_found")),
             }
         }
 
         QueryRequest::StrongestPath { start, end } => {
             match session.strongest_path(NodeId(*start), NodeId(*end)) {
                 Some(path) => Ok(QueryResponse::with_path(path)),
-                None => Ok(QueryResponse::not_found()),
+                None => {
+                    let reason = if session.traverse(NodeId(*start), 0).is_none() {
+                        "start_not_found"
+                    } else if session.traverse(NodeId(*end), 0).is_none() {
+                        "end_not_found"
+                    } else {
+                        "no_path"
+                    };
+                    Ok(QueryResponse::not_found().with_diagnostic(reason))
+                }
             }
         }
 
@@ -192,7 +201,12 @@ fn execute_query_inner(
             }
             let node_ids: Vec<NodeId> = nodes.iter().map(|n| NodeId(*n)).collect();
             let result = session.intersect(&node_ids);
-            Ok(QueryResponse::with_path(result))
+            let is_empty = result.is_empty();
+            let mut response = QueryResponse::with_path(result);
+            if is_empty {
+                response = response.with_diagnostic("no_common_neighbors");
+            }
+            Ok(response)
         }
 
         QueryRequest::Related { node_id, depth } => {
@@ -201,7 +215,7 @@ fn execute_query_inner(
             // For Related queries, use compose which handles both backends
             match session.compose(NodeId(*node_id), *depth) {
                 Some(artifact) => Ok(QueryResponse::with_artifact(&artifact)),
-                None => Ok(QueryResponse::not_found()),
+                None => Ok(QueryResponse::not_found().with_diagnostic("node_not_found")),
             }
         }
 
@@ -216,7 +230,9 @@ fn execute_query_inner(
                     .collect();
                 Ok(QueryResponse::with_properties(properties))
             }
-            Err(KremisError::NodeNotFound(_)) => Ok(QueryResponse::not_found()),
+            Err(KremisError::NodeNotFound(_)) => {
+                Ok(QueryResponse::not_found().with_diagnostic("node_not_found"))
+            }
             Err(e) => Err(e),
         },
     }

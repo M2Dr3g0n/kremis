@@ -30,7 +30,9 @@ Uses Dijkstra's algorithm with cost = `i64::MAX - weight` (higher weight = prefe
 
 ## Response
 
-```json 200 OK
+<CodeGroup>
+
+```json 200 OK (found)
 {
   "success": true,
   "found": true,
@@ -43,6 +45,22 @@ Uses Dijkstra's algorithm with cost = `i64::MAX - weight` (higher weight = prefe
   "error": null
 }
 ```
+
+```json Not Found
+{
+  "success": true,
+  "found": false,
+  "path": [],
+  "edges": [],
+  "grounding": "unknown",
+  "error": null,
+  "diagnostic": "no_path"
+}
+```
+
+</CodeGroup>
+
+When `found` is `false`, `diagnostic` explains why: `start_not_found`, `end_not_found`, or `no_path` (both nodes exist but no path connects them).
 
 ## Example
 

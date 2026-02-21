@@ -28,7 +28,9 @@ Retrieve all stored attribute/value pairs for a specific node.
 
 ## Response
 
-```json 200 OK
+<CodeGroup>
+
+```json 200 OK (found)
 {
   "success": true,
   "found": true,
@@ -43,8 +45,22 @@ Retrieve all stored attribute/value pairs for a specific node.
 }
 ```
 
+```json Not Found
+{
+  "success": true,
+  "found": false,
+  "path": [],
+  "edges": [],
+  "grounding": "unknown",
+  "error": null,
+  "diagnostic": "node_not_found"
+}
+```
+
+</CodeGroup>
+
 <Note>
-  The `properties` field is only included when non-empty.
+  The `properties` field is only included when non-empty. When `found` is `false`, `diagnostic` explains why (e.g. `node_not_found`).
 </Note>
 
 ## Example

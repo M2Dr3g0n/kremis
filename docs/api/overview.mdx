@@ -5,7 +5,7 @@ icon: "code"
 ---
 
 **Base URL:** `http://localhost:8080`
-**Version:** 0.4.0
+**Version:** 0.5.0
 **License:** Apache 2.0
 
 ## Endpoints
@@ -84,3 +84,18 @@ Every query response includes a `grounding` field that classifies the result:
   "error": null
 }
 ```
+
+## Query Response: Diagnostic Field
+
+When `found` is `false`, an optional `diagnostic` field explains why:
+
+| Value | Meaning |
+|-------|---------|
+| `"entity_not_found"` | `lookup`: entity ID does not exist |
+| `"node_not_found"` | `traverse`, `traverse_filtered`, `related`, `properties`: node ID does not exist |
+| `"start_not_found"` | `strongest_path`: start node does not exist |
+| `"end_not_found"` | `strongest_path`: end node does not exist |
+| `"no_path"` | `strongest_path`: both nodes exist but no path connects them |
+| `"no_common_neighbors"` | `intersect`: no node is reachable from all inputs |
+
+The `diagnostic` field is omitted when `found` is `true`.
