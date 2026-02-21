@@ -68,7 +68,7 @@ These are **denied** across the entire workspace:
 ### Conventions
 
 - Use `BTreeMap`/`BTreeSet` instead of `HashMap`/`HashSet` in `kremis-core`.
-- All `QueryResponse` constructors must include `properties: vec![]`.
+- All `QueryResponse` constructors must include `properties: vec![]`, `grounding: "unknown".to_string()`, and `diagnostic: None`. Use `.with_diagnostic("reason")` on `not_found()` responses to populate the Diagnostic Side-Channel.
 - No `unsafe` in production code. Test-only `unsafe` (e.g., `std::env::set_var`) must include a `// SAFETY:` comment.
 - No new dependencies without prior discussion in an issue.
 
