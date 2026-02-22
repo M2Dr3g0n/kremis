@@ -99,6 +99,49 @@ curl -X POST http://localhost:8080/signal \
 
 The `examples/` directory contains sample data in both JSON and text formats.
 
+### Honesty Demo
+
+See what happens when an LLM makes claims about data you've ingested — Kremis tells you which ones are grounded and which ones aren't.
+
+Requires a running server (see Quick Start above). No `pip install` needed — standard library only.
+
+```bash
+python examples/demo_honesty.py
+```
+
+```
+Step 1 — Ingest knowledge base
+  ✓  [1] name       = Alice
+  ✓  [1] role       = engineer
+  ✓  [1] works_on   = Kremis
+  ...
+
+Step 2 — LLM: "Tell me about Alice"
+  › Alice is an engineer.
+  › Alice works on the Kremis project.
+  › Alice knows Bob.
+  › Alice holds a PhD in machine learning from MIT.
+  › Alice previously worked at DeepMind as a research lead.
+  › Alice manages a cross-functional team of 8 people.
+
+Step 3 — Kremis validates each claim
+  [FACT]          Alice is an engineer.          ← Kremis: "engineer"
+  [FACT]          Alice works on the Kremis project.  ← Kremis: "Kremis"
+  [FACT]          Alice knows Bob.               ← Kremis: "Bob"
+  [NOT IN GRAPH]  Alice holds a PhD from MIT.    ← Kremis: None
+  [NOT IN GRAPH]  Alice previously worked at DeepMind.  ← Kremis: None
+  [NOT IN GRAPH]  Alice manages a team of 8.     ← Kremis: None
+
+  Confirmed by graph: 3/6
+  Not in graph:       3/6  (hallucinations or unknown facts)
+```
+
+With `--ollama` (requires [Ollama](https://ollama.com) running locally), the LLM generates claims in real time:
+
+```bash
+python examples/demo_honesty.py --ollama
+```
+
 ### Docker
 
 ```bash
