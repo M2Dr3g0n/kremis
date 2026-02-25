@@ -18,9 +18,7 @@
 use crate::graph::GraphStore;
 use crate::{Artifact, Attribute, EdgeWeight, EntityId, KremisError, Node, NodeId, Signal, Value};
 use redb::{Database, ReadableDatabase, ReadableTable, ReadableTableMetadata, TableDefinition};
-use std::collections::hash_map::DefaultHasher;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
-use std::hash::{Hash, Hasher};
 use std::path::Path;
 
 /// Table for nodes: NodeId(u64) -> serialized Node bytes
@@ -38,6 +36,32 @@ const METADATA: TableDefinition<&str, u64> = TableDefinition::new("metadata");
 /// Table for properties: (node_id, attr_hash) -> serialized (Attribute, Vec<Value>)
 /// We use attr_hash (u64) as part of the key to enable range queries per node.
 const PROPERTIES: TableDefinition<(u64, u64), &[u8]> = TableDefinition::new("properties");
+
+/// Compute a stable, cross-version attribute hash for use as a PROPERTIES table sub-key.
+///
+/// Uses FNV-1a 64-bit: a fixed, publicly documented algorithm guaranteed to produce
+/// the same output across all Rust versions, platforms, and process restarts.
+///
+/// ## Why not `DefaultHasher`?
+///
+/// `std::hash::DefaultHasher` is explicitly documented as "not guaranteed to be the
+/// same across different versions of Rust". It changed from SipHash-2-4 to SipHash-1-3
+/// in Rust 1.7 (PR #33940) and can change again. Using it as a persistent DB key
+/// violates Fundamental Law #1 (Determinism).
+///
+/// ## FNV-1a 64-bit constants
+/// - Offset basis: 0xcbf29ce484222325 (standard FNV-1a 64-bit)
+/// - Prime:        0x100000001b3
+fn stable_attr_hash(s: &str) -> u64 {
+    const FNV_OFFSET: u64 = 0xcbf29ce484222325;
+    const FNV_PRIME: u64 = 0x100000001b3;
+    let mut hash = FNV_OFFSET;
+    for byte in s.bytes() {
+        hash ^= byte as u64;
+        hash = hash.wrapping_mul(FNV_PRIME);
+    }
+    hash
+}
 
 /// A disk-backed graph store using redb.
 ///
@@ -224,9 +248,7 @@ impl RedbGraph {
                 };
 
                 // Store property: read-modify-write within the same transaction.
-                let mut hasher = DefaultHasher::new();
-                signal.attribute.as_str().hash(&mut hasher);
-                let attr_hash = hasher.finish();
+                let attr_hash = stable_attr_hash(signal.attribute.as_str());
 
                 let mut values: Vec<Value> = props_table
                     .get((node_id.0, attr_hash))
@@ -781,10 +803,8 @@ impl GraphStore for RedbGraph {
             return Err(KremisError::NodeNotFound(node));
         }
 
-        // Hash the attribute for the key
-        let mut hasher = DefaultHasher::new();
-        attribute.as_str().hash(&mut hasher);
-        let attr_hash = hasher.finish();
+        // Stable attribute hash: FNV-1a 64-bit (see stable_attr_hash fn for rationale)
+        let attr_hash = stable_attr_hash(attribute.as_str());
 
         let write_txn = self
             .db
@@ -1770,6 +1790,62 @@ mod tests {
             assert_eq!(props.len(), 2);
             assert!(props.contains(&(Attribute::new("name"), Value::new("Alice"))));
             assert!(props.contains(&(Attribute::new("city"), Value::new("Paris"))));
+        }
+    }
+
+    #[test]
+    fn stable_attr_hash_is_deterministic() {
+        // Verify FNV-1a produces the same value every run.
+        // If this test ever fails, it means stable_attr_hash changed — which
+        // would break all existing databases. Never change this expected value.
+        let h1 = stable_attr_hash("name");
+        let h2 = stable_attr_hash("name");
+        let h3 = stable_attr_hash("role");
+        assert_eq!(h1, h2, "hash must be deterministic");
+        assert_ne!(h1, h3, "different attributes must hash differently");
+        // Regression anchor: verify known FNV-1a 64-bit value for "name".
+        // Computed once and hardcoded to detect any future algorithm change.
+        assert_eq!(
+            h1, 0xc4bcadba8e631b86,
+            "FNV-1a value for 'name' must never change"
+        );
+    }
+
+    #[test]
+    fn store_property_accumulates_across_reopen() {
+        let temp = tempdir().expect("temp dir");
+        let db_path = temp.path().join("test.redb");
+
+        // Write "name" = "Alice" in session 1
+        {
+            let mut graph = RedbGraph::open(&db_path).expect("open db");
+            let node = graph.insert_node(EntityId(1)).expect("insert node");
+            graph
+                .store_property(node, Attribute::new("name"), Value::new("Alice"))
+                .expect("store");
+        }
+
+        // Reopen and write "name" = "Bob" in session 2 — must accumulate, not duplicate
+        {
+            let mut graph = RedbGraph::open(&db_path).expect("reopen db");
+            let node = graph
+                .get_node_by_entity(EntityId(1))
+                .expect("node should exist after reopen");
+            graph
+                .store_property(node, Attribute::new("name"), Value::new("Bob"))
+                .expect("store");
+
+            let props = graph.get_properties(node).expect("get properties");
+            // Must have exactly 2 values for "name" (Alice + Bob), not 4 (duplication bug)
+            let name_values: Vec<_> = props
+                .iter()
+                .filter(|(attr, _)| attr.as_str() == "name")
+                .collect();
+            assert_eq!(
+                name_values.len(),
+                2,
+                "expected exactly 2 name values (Alice + Bob), got: {name_values:?}"
+            );
         }
     }
 }
