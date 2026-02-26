@@ -107,6 +107,15 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate release notes
+        uses: orhun/git-cliff-action@v4
+        id: git-cliff
+        with:
+          config: .github/cliff.toml
+          args: --latest --strip header
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -122,7 +131,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body: ${{ steps.git-cliff.outputs.content }}
           files: |
             artifacts/**/*
             checksums.txt

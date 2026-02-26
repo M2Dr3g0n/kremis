@@ -123,6 +123,7 @@ Committed files that contain the version (all must be updated together):
 | `Cargo.toml` | `[workspace.package] version` |
 | `docs/api/overview.mdx` | Version in description |
 | `apps/kremis/tests/types_tests.rs` | Version assertion |
+| `CHANGELOG.md` | Regenerate with `git-cliff --config .github/cliff.toml --output CHANGELOG.md` |
 
 ---
 
@@ -164,7 +165,7 @@ To keep the project focused, the following will not be accepted:
 - **New dependencies without discussion.** Open an issue first.
 - **Speculative features.** Every change must solve a concrete, current problem.
 - **Cosmetic refactoring.** Do not restructure working code for style preferences.
-- **CHANGELOG, SECURITY files.** Not needed at this stage.
+- **SECURITY files.** Not needed at this stage.
 
 ---
 
