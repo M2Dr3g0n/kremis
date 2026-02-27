@@ -230,7 +230,7 @@ Configure in Claude Desktop (`claude_desktop_config.json`):
 }
 ```
 
-7 tools available: `kremis_ingest`, `kremis_lookup`, `kremis_traverse`, `kremis_path`, `kremis_intersect`, `kremis_status`, `kremis_properties`.
+9 tools available: `kremis_ingest`, `kremis_lookup`, `kremis_traverse`, `kremis_path`, `kremis_intersect`, `kremis_status`, `kremis_properties`, `kremis_retract`, `kremis_hash`.
 
 ### Rust API
 
