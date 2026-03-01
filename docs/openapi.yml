@@ -67,7 +67,7 @@ paths:
                 $ref: "#/components/schemas/HealthResponse"
               example:
                 status: ok
-                version: "0.10.0"
+                version: "0.11.0"
         "429":
           $ref: "#/components/responses/TooManyRequests"
 

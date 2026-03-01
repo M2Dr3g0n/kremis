@@ -2,11 +2,15 @@
 
 All notable changes to Kremis are documented in this file.
 
-## [Unreleased]
+## [0.11.0] - 2026-03-01
 
 ### Documentation
 
 - Regenerate CHANGELOG for v0.10.0 ([`c509522`](https://github.com/TyKolt/kremis/commit/c50952225c18636071a996220117b2017e2a3290))
+
+### Features
+
+- Add top_k to TraverseFiltered, v0.11.0 ([`37f083d`](https://github.com/TyKolt/kremis/commit/37f083dc110a7ce6e05e5fd0c196d9edc4eaa35b))
 
 ## [0.10.0] - 2026-02-28
 
